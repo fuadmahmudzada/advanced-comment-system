@@ -21,7 +21,7 @@ public class Scheduler {
     private final CommentRepository commentRepository;
     private final RedisTemplate<String, String> redisTemplate;
     private int count;
-    @Scheduled(fixedRate = 10000)
+
     public void addToDb(){
         System.out.println("Scheduler start running");
         Set<String> keys = redisTemplate.keys("*commentapp:comment:key:*");

@@ -13,15 +13,11 @@ import java.time.LocalDateTime;
 public class CommentDto implements Serializable {
     private Long id;
     private String content;
-    private String fullName;
     private LocalDateTime createdAt;
-    private Integer upVote;
-    public CommentDto(Long id, String content, String fullName, LocalDateTime createdAt, Integer upVote){
+    public CommentDto(Long id, String content, LocalDateTime createdAt){
         this.id = id;
         this.content = content;
-        this.fullName = fullName;
         this.createdAt = createdAt;
-        this.upVote = upVote;
     }
     public CommentDto(){}
 }

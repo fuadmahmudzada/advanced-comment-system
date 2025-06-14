@@ -9,6 +9,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Setter
@@ -20,19 +21,18 @@ public class Comment implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String content;
-    private String fullName;
-    private Integer upVote = 0;
-    private Long downVote;
+    @ManyToOne
+    private Users users;
     @CreationTimestamp
     private LocalDateTime createdAt;
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+
+
     public Comment(){}
     public Comment(Map<Object, Object> map){
         this.id = Long.valueOf(Integer.valueOf((String) map.get("id")));
         this.content = (String) map.get("content");
-        this.fullName = (String) map.get("fullName");
-        this.upVote = Integer.valueOf((String) map.get("upVote"));
     }
 }

@@ -39,6 +39,7 @@ dependencies {
 
 
     implementation("com.redislabs:gear_runtime:1.2.3")
+    implementation("org.redisson:redisson:3.49.0")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.8")
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation("redis.clients:jedis:5.2.0")
