@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: comment-system
+  datasource:
+    username: postgres
+    password: 10062005
+    url: jdbc:postgresql://localhost:5432/comment_system
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 1234
+
+server:
+  port: 7070
