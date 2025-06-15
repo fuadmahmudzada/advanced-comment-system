@@ -1,9 +1,10 @@
 package com.company.commentsystem.model.enums;
 
 
-import lombok.ToString;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
 
-@ToString
+
 public enum VoteStatus {
     DOWN,
     UP

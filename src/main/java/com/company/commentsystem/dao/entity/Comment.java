@@ -23,6 +23,8 @@ public class Comment implements Serializable {
     private String content;
     @ManyToOne
     private Users users;
+    @ManyToOne
+    private Meeting  meeting;
     @CreationTimestamp
     private LocalDateTime createdAt;
     @UpdateTimestamp

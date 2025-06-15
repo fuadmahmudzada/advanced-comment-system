@@ -1,5 +1,7 @@
 package com.company.commentsystem;
 
+import com.company.commentsystem.model.enums.VoteStatus;
+import org.postgresql.util.PSQLException;
 import org.redisson.Redisson;
 import org.redisson.api.RLocalCachedMap;
 import org.redisson.api.RMap;
@@ -18,6 +20,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 @Configuration
 public class RedissonConfig {
@@ -40,20 +43,27 @@ public class RedissonConfig {
     }
 
     @Bean
-    public MapWriter<String, Long> upVoteMapWriter() {
-        MapWriter<String, Long> mapWriter = new MapWriter<String, Long>() {
+    public MapWriter<String, Set<Long>> upVoteMapWriter() {
+        MapWriter<String, Set<Long>> mapWriter = new MapWriter<String, Set<Long>>() {
 
 
             @Override
-            public void write(Map<String, Long> map) {
-                String sql = "UPDATE comment SET up_vote = ? where id = ?";
-                System.out.println("Write operation has been called for upvote");
+            public void write(Map<String, Set<Long>> map) {
+                String sql = "INSERT INTO vote(comment_id, users_id, vote_status) values (?, ?, ?)";
+                System.out.println("Write operation has been called for upvote " + map.keySet().toString());
 
                 try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
-                    for (Map.Entry<String, Long> entry : map.entrySet()) {
+                    for (Map.Entry<String, Set<Long>> entry : map.entrySet()) {
 //                        preparedStatement.setLong(1, Long.valueOf(entry.getKey().substring(10)));
-                        preparedStatement.setLong(1, entry.getValue());
-                        preparedStatement.setLong(2, Long.parseLong(entry.getKey().substring(entry.getKey().length()-1)));
+                        System.out.println("Votesstatus " + VoteStatus.UP);
+                        for(Long id : entry.getValue()){
+                            String[] arr = entry.getKey().split(":");
+                            preparedStatement.setLong(1, Long.parseLong(arr[arr.length-1]));
+                            preparedStatement.setLong(2, id);
+                            preparedStatement.setString(3, String.valueOf(VoteStatus.UP));
+                        }
+
+
                         preparedStatement.addBatch();
                     }
                     preparedStatement.executeBatch();
@@ -73,20 +83,22 @@ public class RedissonConfig {
     }
 
     @Bean
-    public MapWriter<String, Long> downVoteMapWriter(){
-        MapWriter<String, Long> mapWriter = new MapWriter<String, Long>() {
+    public MapWriter<String, Set<Long>> downVoteMapWriter(){
+        MapWriter<String, Set<Long>> mapWriter = new MapWriter<String, Set<Long>>() {
 
             @Override
-            public void write(Map<String, Long> map) {
-                String sql = "UPDATE comment SET down_vote = ? WHERE id = ?";
-                System.out.println("Write operation has been called for down vote");
+            public void write(Map<String, Set<Long>> map) {
+                String sql = "INSERT INTO vote(comment_id, users_id, vote_status) values (?, ?, ?)";
+                System.out.println("Write operation has been called for down vote " + map.keySet().toString());
 
                 try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
-                    for (Map.Entry<String, Long> entry : map.entrySet()) {
+                    for (Map.Entry<String, Set<Long>> entry : map.entrySet()) {
 //                        preparedStatement.setLong(1, Long.valueOf(entry.getKey().substring(10)));
-                        preparedStatement.setLong(1, entry.getValue());
-                        preparedStatement.setLong(2, Long.parseLong(entry.getKey().substring(entry.getKey().length()-1)));
-                        preparedStatement.addBatch();
+                        for(Long id : entry.getValue()){
+                            preparedStatement.setLong(1, Long.parseLong(entry.getKey().substring(entry.getKey().length()-1)));
+                            preparedStatement.setLong(2, id);
+                            preparedStatement.setString(3, VoteStatus.DOWN.toString());
+                        }
                     }
                     preparedStatement.executeBatch();
                 } catch (SQLException e) {
@@ -106,22 +118,22 @@ public class RedissonConfig {
     }
 
     @Bean
-    public RLocalCachedMap<String, Long> upVoteMap(RedissonClient client, MapWriter<String, Long> upVoteMapWriter) {
-        LocalCachedMapOptions<String, Long> options = LocalCachedMapOptions.<String, Long>name("upVoteMap")
+    public RLocalCachedMap<String, Set<Long>> upVoteMap(RedissonClient client, MapWriter<String, Set<Long>> upVoteMapWriter) {
+        LocalCachedMapOptions<String, Set<Long>> options = LocalCachedMapOptions.<String, Set<Long>>name("upVoteMap")
                 .writer(upVoteMapWriter)
                 .writeMode(WriteMode.WRITE_BEHIND)
-                .writeBehindDelay(20000)
+                .writeBehindDelay(30000)
                 .writeBehindBatchSize(100000);
         return client.getLocalCachedMap(options);
     }
 
 
     @Bean
-    public RLocalCachedMap<String, Long> downVoteMap(RedissonClient client, MapWriter<String, Long> downVoteMapWriter) {
-        LocalCachedMapOptions<String, Long> options = LocalCachedMapOptions.<String, Long>name("downVoteMap")
+    public RLocalCachedMap<String, Set<Long>> downVoteMap(RedissonClient client, MapWriter<String, Set<Long>> downVoteMapWriter) {
+        LocalCachedMapOptions<String, Set<Long>> options = LocalCachedMapOptions.<String, Set<Long>>name("downVoteMap")
                 .writer(downVoteMapWriter)
                 .writeMode(WriteMode.WRITE_BEHIND)
-                .writeBehindDelay(20000)
+                .writeBehindDelay(30000)
                 .writeBehindBatchSize(100000);
         return client.getLocalCachedMap(options);
     }

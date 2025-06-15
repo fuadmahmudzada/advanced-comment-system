@@ -6,6 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CommentAddDto {
-    private Long id;
     private String content;
+    private Long userId;
+    private Long meetingId;
 }

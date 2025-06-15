@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
+import java.util.List;
+
 @Entity
 @Data
 public class Meeting {
@@ -14,4 +16,6 @@ public class Meeting {
     @NotNull
     @Column(unique = true)
     private String link;
+    @OneToMany
+    private List<Comment> comments;
 }

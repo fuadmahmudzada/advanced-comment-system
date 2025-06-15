@@ -1,9 +1,12 @@
 package com.company.commentsystem.controller;
 
 import com.company.commentsystem.dao.entity.Comment;
+import com.company.commentsystem.dao.entity.Users;
 import com.company.commentsystem.dao.repository.CommentRepository;
+import com.company.commentsystem.dao.repository.UsersRepository;
 import com.company.commentsystem.model.dto.CommentAddDto;
 import com.company.commentsystem.model.dto.CommentDto;
+import com.company.commentsystem.model.dto.VoteRequestDto;
 import com.company.commentsystem.model.enums.VoteStatus;
 import com.company.commentsystem.service.CommentService;
 import lombok.RequiredArgsConstructor;
@@ -30,17 +33,14 @@ public class CommentController {
     //private HashOperations<String, Long, Comment> objectHashOperations =null;
     private final RedisTemplate<String, String> redisTemplate;
     private final CommentRepository commentRepository;
-    private final RLocalCachedMap<String, Long> upVoteMap;
-    private final RLocalCachedMap<String, Long> downVoteMap;
+    private final UsersRepository usersRepository;
 
 
     @PostMapping
     public ResponseEntity<CommentDto> addComment(@RequestBody CommentAddDto commentAddDto) {
 
         CommentDto dto = commentService.addComment(commentAddDto);
-        Comment comment = new Comment();
-        comment.setContent(dto.getContent());
-        comment.setId(dto.getId());
+
         //objectHashOperations.put("COMMENTS", dto.getId(), comment);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(dto);
@@ -59,8 +59,8 @@ public class CommentController {
 
     //Jedis jedis = connectionManager.getConnection()
     @PostMapping("/{id}")
-    public ResponseEntity<String> vote(@PathVariable Long id, @RequestBody VoteStatus status) {
-        Long updatedVote = commentService.vote(id, status);
-        return ResponseEntity.status(HttpStatus.OK).body(String.format("%s updated, new vote: %d", status.toString(), updatedVote));
+    public ResponseEntity<String> vote(@PathVariable Long id, @RequestBody VoteRequestDto voteRequestDto) {
+        commentService.vote(id, voteRequestDto);
+        return ResponseEntity.status(HttpStatus.OK).body(String.format("%s updated", voteRequestDto.getVoteStatus().toString()));
     }
 }

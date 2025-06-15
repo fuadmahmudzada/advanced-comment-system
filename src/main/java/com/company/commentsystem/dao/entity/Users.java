@@ -4,12 +4,14 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 
 import java.util.List;
 
 @Entity
 @Table(name = "users")
 @Getter
+@Setter
 public class Users {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,7 +25,7 @@ public class Users {
     @OneToMany
     private List<Vote> votes;
 
-    public Users(String fullName){
+    public Users(String fullName) {
         this.fullName = fullName;
     }
 
