@@ -2,11 +2,11 @@ package com.company.commentsystem.controller;
 
 import com.company.commentsystem.dao.entity.Comment;
 import com.company.commentsystem.dao.entity.Users;
+import com.company.commentsystem.dao.entity.Vote;
 import com.company.commentsystem.dao.repository.CommentRepository;
 import com.company.commentsystem.dao.repository.UsersRepository;
-import com.company.commentsystem.model.dto.CommentAddDto;
-import com.company.commentsystem.model.dto.CommentDto;
-import com.company.commentsystem.model.dto.VoteRequestDto;
+import com.company.commentsystem.model.dto.*;
+import com.company.commentsystem.model.enums.SortType;
 import com.company.commentsystem.model.enums.VoteStatus;
 import com.company.commentsystem.service.CommentService;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +14,8 @@ import org.redisson.api.RLocalCachedMap;
 import org.redisson.api.RMap;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
@@ -46,21 +48,60 @@ public class CommentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(dto);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/comment/{id}")
     public CommentDto getComment(@PathVariable Long id) {
-        return commentService.getCommentById(id);
+        return commentService.getCommentByIdFromDb(id);
     }
 
-    @GetMapping
-    public List<CommentDto> getAllComments() {
+    @GetMapping("/{platformLink}")
+    public List<CommentDto> getAllComments(@PathVariable String platformLink) {
         //  List<CommentDto> list = objectHashOperations.entries("COMMENTS").values().stream().map(comment -> new CommentDto(comment.getId(), comment.getContent(), comment.getFullName(), comment.getCreatedAt())).toList();
-        return commentService.getComments();
+        return commentService.getComments(platformLink);
     }
 
     //Jedis jedis = connectionManager.getConnection()
     @PostMapping("/{id}")
     public ResponseEntity<String> vote(@PathVariable Long id, @RequestBody VoteRequestDto voteRequestDto) {
-        commentService.vote(id, voteRequestDto);
+        commentService.voteFromDb(id, voteRequestDto);
+
         return ResponseEntity.status(HttpStatus.OK).body(String.format("%s updated", voteRequestDto.getVoteStatus().toString()));
     }
+
+    @DeleteMapping
+    public ResponseEntity<String> remove(@RequestHeader(name = "comment-id") Long id) {
+        commentService.removeFromDb(id);
+        return ResponseEntity.ok("Comment successfully deleted");
+    }
+
+    @PatchMapping
+    public ResponseEntity<CommentDto> editComment(@RequestBody CommentEditDto commentEditDto) {
+        CommentDto commentDto = commentService.editComment(commentEditDto);
+        return ResponseEntity.status(HttpStatus.OK).body(commentDto);
+    }
+
+    @GetMapping("/{id}/votes")
+    public ResponseEntity<List<VoteUserDto>> getVotes(@PathVariable(name ="id") Long commentId, @RequestParam VoteStatus voteStatus){
+        return ResponseEntity.ok(commentService.getVotes(commentId, voteStatus));
+    }
+//
+//    @GetMapping
+//    public ResponseEntity<List<CommentDto>> getAllComments(@RequestHeader(name = "comment-id") Long commentId){
+//        return ResponseEntity.ok(commentService.getAllCommentsByCommentId(commentId));
+//    }
+
+    @GetMapping
+    public ResponseEntity<List<Comment>> getAllPageableComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize, @RequestParam SortType sortType, @RequestParam Long meetingId/*, @RequestParam CommentSearchDto commentSearchDto*/){
+        return ResponseEntity.ok(commentService.getAllPageableComments(sortType, pageNumber, pageSize, meetingId));
+    }
+
+
+//    @PostMapping("/post")
+//    public void addsomeComment(){
+//        commentService.addWithoutAdd();
+//    }
+//
+//    @PostMapping("/post/vote")
+//    public void voteWithoutAdd(){
+//        commentService.voteVithoutAdd();
+//    }
 }

@@ -6,4 +6,5 @@ import lombok.Data;
 public class MeetingResponseDto {
     private Long id;
     private String link;
+    private String platformLink;
 }

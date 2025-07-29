@@ -9,4 +9,5 @@ public class CommentAddDto {
     private String content;
     private Long userId;
     private Long meetingId;
+    private Long repliedToId;
 }

@@ -20,7 +20,7 @@ public class MeetingController {
 
     @PostMapping
     public ResponseEntity<MeetingResponseDto> create(@RequestBody MeetingCreateDto meetingCreateDto) throws URISyntaxException {
-        MeetingResponseDto meetingResponseDto = meetingService.create(meetingCreateDto.getLink());
+        MeetingResponseDto meetingResponseDto = meetingService.create(meetingCreateDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(meetingResponseDto);
     }
 }

@@ -1,5 +1,6 @@
 package com.company.commentsystem.dao.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -11,6 +12,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Setter
 @Getter
@@ -21,10 +23,19 @@ public class Comment implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String content;
-    @ManyToOne
-    private Users users;
-    @ManyToOne
-    private Meeting  meeting;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", referencedColumnName = "id")
+    @JsonIgnore
+    private Users user;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "meeting_id")
+    @JsonIgnore
+    private Meeting meeting;
+    @OneToMany(mappedBy = "comment", orphanRemoval = true, cascade = CascadeType.ALL)
+    @JsonIgnore
+    private Set<Vote> votes;
+    @OneToMany(fetch = FetchType.LAZY)
+    private List<Comment> repliedComments;
     @CreationTimestamp
     private LocalDateTime createdAt;
     @UpdateTimestamp
@@ -37,4 +48,20 @@ public class Comment implements Serializable {
         this.id = Long.valueOf(Integer.valueOf((String) map.get("id")));
         this.content = (String) map.get("content");
     }
+
+
+    public void addVote(Vote vote){
+        votes.add(vote);
+        vote.setComment(this);
+    }
+
+    public void removeVote(Vote vote){
+        votes.remove(vote);
+        vote.setComment(null);
+    }
+
+    public void addReply(Comment comment){
+        repliedComments.add(comment);
+    }
+
 }

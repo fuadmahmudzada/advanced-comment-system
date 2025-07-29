@@ -122,7 +122,7 @@ public class RedissonConfig {
         LocalCachedMapOptions<String, Set<Long>> options = LocalCachedMapOptions.<String, Set<Long>>name("upVoteMap")
                 .writer(upVoteMapWriter)
                 .writeMode(WriteMode.WRITE_BEHIND)
-                .writeBehindDelay(30000)
+                .writeBehindDelay(100000)
                 .writeBehindBatchSize(100000);
         return client.getLocalCachedMap(options);
     }
@@ -133,7 +133,7 @@ public class RedissonConfig {
         LocalCachedMapOptions<String, Set<Long>> options = LocalCachedMapOptions.<String, Set<Long>>name("downVoteMap")
                 .writer(downVoteMapWriter)
                 .writeMode(WriteMode.WRITE_BEHIND)
-                .writeBehindDelay(30000)
+                .writeBehindDelay(100000)
                 .writeBehindBatchSize(100000);
         return client.getLocalCachedMap(options);
     }
