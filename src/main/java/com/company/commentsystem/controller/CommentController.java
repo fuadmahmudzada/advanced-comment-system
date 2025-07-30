@@ -6,6 +6,7 @@ import com.company.commentsystem.dao.entity.Vote;
 import com.company.commentsystem.dao.repository.CommentRepository;
 import com.company.commentsystem.dao.repository.UsersRepository;
 import com.company.commentsystem.model.dto.*;
+import com.company.commentsystem.model.enums.CommentSearch;
 import com.company.commentsystem.model.enums.SortType;
 import com.company.commentsystem.model.enums.VoteStatus;
 import com.company.commentsystem.service.CommentService;
@@ -90,8 +91,9 @@ public class CommentController {
 //    }
 
     @GetMapping
-    public ResponseEntity<List<Comment>> getAllPageableComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize, @RequestParam SortType sortType, @RequestParam Long meetingId/*, @RequestParam CommentSearchDto commentSearchDto*/){
-        return ResponseEntity.ok(commentService.getAllPageableComments(sortType, pageNumber, pageSize, meetingId));
+    public ResponseEntity<List<CommentDto>> getAllPageableComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize, @RequestParam SortType sortType, @RequestParam Long meetingId, @RequestParam CommentSearch commentSearch, @RequestParam String content){
+
+        return ResponseEntity.ok(commentService.getAllPageableComments(sortType, pageNumber, pageSize, meetingId, new CommentSearchDto(commentSearch, content) ));
     }
 
 

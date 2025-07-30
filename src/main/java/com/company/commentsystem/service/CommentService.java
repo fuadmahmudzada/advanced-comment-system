@@ -18,6 +18,7 @@ import org.redisson.api.RLocalCachedMap;
 import org.redisson.api.listener.MapPutListener;
 import org.redisson.api.map.event.EntryCreatedListener;
 import org.redisson.api.map.event.EntryEvent;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -34,7 +35,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@RequiredArgsConstructor
+//@RequiredArgsConstructor
 @Service
 public class CommentService {
     private final CommentRepository commentRepository;
@@ -44,7 +45,20 @@ public class CommentService {
     private final VoteRepository voteRepository;
     private final UsersRepository usersRepository;
     private final MeetingRepository meetingRepository;
+    private final CommentSpecification commentSpecification;
 
+    public CommentService(CommentRepository commentRepository, RedisTemplate<String, String> redisTemplate, RLocalCachedMap<String, Set<Long>> upVoteMap, RLocalCachedMap<String, Set<Long>> downVoteMap, VoteRepository voteRepository, UsersRepository usersRepository, MeetingRepository meetingRepository, CommentSpecification commentSpecification) {
+        this.commentRepository = commentRepository;
+        this.redisTemplate = redisTemplate;
+        this.upVoteMap = upVoteMap;
+        this.downVoteMap = downVoteMap;
+        this.voteRepository = voteRepository;
+        this.usersRepository = usersRepository;
+        this.meetingRepository = meetingRepository;
+        this.commentSpecification = commentSpecification;
+    }
+
+    public List<Comment> commentResultList = new ArrayList<>();
 //    public void methodWithAdd(){
 //        Comment comment = new Comment();
 //        comment.setContent("contentcontent1");
@@ -92,7 +106,7 @@ public class CommentService {
         comment.setMeeting(meetingRepository.findById(commentAddDto.getMeetingId()).get());
         Comment filledComment = commentRepository.save(comment);
         Comment repliedComment = commentRepository.findById(commentAddDto.getRepliedToId()).get();
-        repliedComment.addReply(filledComment);
+        //repliedComment.addReply(filledComment);
         CommentDto dto = new CommentDto();
         dto.setContent(filledComment.getContent());
         dto.setId(filledComment.getId());
@@ -104,14 +118,18 @@ public class CommentService {
 
     public List<CommentDto> getComments(String platformLink) {
         System.out.println(commentRepository.findAllByMeeting_PlatformLinkOrderByVoteDesc(platformLink).getFirst().getUser());
-        List<CommentDto> commentDtos = commentRepository.findAllByMeeting_PlatformLinkOrderByVoteDesc(platformLink).stream()
-                .map(comment ->
-                        new CommentDto(comment.getId(),
-                                comment.getContent(),
-                                comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count(),
-                                comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count(),
-                                comment.getUser().getId(),
-                                comment.getCreatedAt(), commentRepository.countByComment_Id(comment.getId()))).toList();
+        List<Comment> comments = commentRepository.findAllByMeeting_PlatformLinkOrderByVoteDesc(platformLink);
+        Map<Long, List<Comment>> map = comments.stream().collect(Collectors.groupingBy(x->x.getParentComment().getId()));
+        List<CommentDto> commentDtos = comments.stream().map(
+        comment -> {
+            return new CommentDto(comment.getId(),
+                    comment.getContent(),
+                    comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count(),
+                    comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count(),
+                    comment.getUser().getId(),
+                    comment.getCreatedAt(), commentRepository.countByComment_Id(comment.getId()), map.get(comment.getId()));
+
+        }).toList();
         return commentDtos;
     }
 
@@ -263,38 +281,67 @@ public class CommentService {
 
     public List<CommentDto> getAllCommentsByCommentId(Long commentId) {
         List<Comment> commentList = commentRepository.findAllCommentsByCommentId(commentId);
-        return commentList.stream().map(comment ->
-                new CommentDto(comment.getId(),
-                        comment.getContent(),
-                        comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count(),
-                        comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count(),
-                        comment.getUser().getId(),
-                        comment.getCreatedAt(), commentRepository.countByComment_Id(comment.getId()))).toList();
+
+        Map<Long, List<Comment>> map = commentList.stream().collect(Collectors.groupingBy(x->x.getParentComment().getId()));
+
+        return commentList.stream().map(comment -> {
+            return new CommentDto(comment.getId(),
+                    comment.getContent(),
+                    comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count(),
+                    comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count(),
+                    comment.getUser().getId(),
+                    comment.getCreatedAt(), commentRepository.countByComment_Id(comment.getId()), map.get(comment.getId()));
+
+        }).toList();
     }
 
-    public List<Comment> getAllPageableComments(SortType sortType, int pageNumber, int pageSize, Long meetingId) {
-
+    public List<CommentDto> getAllPageableComments(SortType sortType, int pageNumber, int pageSize, Long meetingId, CommentSearchDto commentSearchDto) {
+        System.out.println("getAllPageableComments: " + commentResultList);
+        commentResultList = new ArrayList<>();
         Sort liked = JpaSort.unsafe("(select count(*) from vote where vote_status = 'UP' and comment_id = c.id) - (select count(*) from vote where vote_status = 'DOWN' and comment_id = c.id)");
         Sort sort = switch (sortType) {
             case BEST -> liked.descending();
-            case NEW -> Sort.by("created_at").descending();
-            case OLD -> Sort.by("created_at").ascending();
+            case NEW -> Sort.by("createdAt").descending();
+            case OLD -> Sort.by("createdAt").ascending();
             case LEAST_LIKED -> liked.ascending();
             case TOP ->
                     JpaSort.unsafe("(select count(*) from vote where vote_status = 'UP' and comment_id = c.id)").descending();
             case HOT -> JpaSort.unsafe("""
-                    log(abs((select count(*) from vote where vote_status = 'UP' and\s
-                    comment_id = c.id) - (select count(*) from vote where vote_status = 'DOWN'
-                    and comment_id = c.id))) + (extract(epoch from (now() - c.created_at))/4500)
-                   \s""");
+                     log(abs((select count(*) from vote where vote_status = 'UP' and\s
+                     comment_id = c.id) - (select count(*) from vote where vote_status = 'DOWN'
+                     and comment_id = c.id))) + (extract(epoch from (now() - c.created_at))/4500)
+                    \s""");
         };
 
 
         Pageable pageable = PageRequest.of(pageNumber, pageSize, sort);
-        CommentSpecification commentSpecification = new CommentSpecification();
-        Specification<Comment> specification = Specification.where(null);
-        specification = specification.and(commentSpecification.includeReplies(CommentSearch.SUBCOMMENTS_1_DEPTH, meetingId));
-        return  commentRepository.findAll(specification);
+        Specification<Comment> specification = (root, query, cb) -> null;
+        if(commentSearchDto.getCommentSearch()!=null){
+            specification = specification.and(commentSpecification.getAllParentComments(commentSearchDto.getCommentSearch(), meetingId));
+        }
+
+        if (commentSearchDto.getText() != null && !commentSearchDto.getText().isEmpty()) {
+            specification = specification.and(commentSpecification.hasContent(commentSearchDto.getText()));
+        }
+
+        List<Comment> resultComments = commentRepository.findAll(specification, sort);
+        resultComments.stream().filter(x->x.getParentComment()==null).forEach(x->{
+            Comment comment = new Comment();
+            comment.setId(-1L);
+            x.setParentComment(comment);
+        });
+        HashMap<Long, List<Comment>> map = resultComments.stream().filter(x->x.getParentComment()!=null).collect(Collectors.groupingBy(comment->comment.getParentComment().getId(), HashMap<Long, List<Comment>>::new, Collectors.mapping(x->x, Collectors.toList())));
+        System.out.println(map.toString());
+
+        return resultComments.stream().map(comment -> {
+             return new CommentDto(comment.getId(),
+                    comment.getContent(),
+                    comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count(),
+                    comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count(),
+                    comment.getUser().getId(),
+                    comment.getCreatedAt(), commentRepository.countByComment_Id(comment.getId()), map.get(comment.getId()));
+
+        }).toList();
         /*commentRepository.findAllPageable(pageable, meetingId).map(comment -> {
             return new CommentDto(comment.getId(),
                     comment.getContent(),

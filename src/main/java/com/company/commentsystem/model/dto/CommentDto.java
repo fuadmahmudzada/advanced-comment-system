@@ -1,5 +1,6 @@
 package com.company.commentsystem.model.dto;
 
+import com.company.commentsystem.dao.entity.Comment;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -7,6 +8,7 @@ import lombok.Setter;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Getter
@@ -19,7 +21,8 @@ public class CommentDto implements Serializable {
     private Long upVote;
     private Long downVote;
     private Long repliedCommentCount;
-    public CommentDto(Long id, String content, Long upVote, Long downVote, Long userId, LocalDateTime createdAt, Long repliedCommentCount){
+    private List<Comment> replies;
+    public CommentDto(Long id, String content, Long upVote, Long downVote, Long userId, LocalDateTime createdAt, Long repliedCommentCount, List<Comment> replies){
         this.id = id;
         this.content = content;
         this.createdAt = createdAt;
@@ -27,6 +30,7 @@ public class CommentDto implements Serializable {
         this.downVote = downVote;
         this.userId = userId;
         this.repliedCommentCount = repliedCommentCount;
+        this.replies = replies;
     }
     public CommentDto(){}
 

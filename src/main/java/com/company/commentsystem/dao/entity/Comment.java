@@ -1,6 +1,7 @@
 package com.company.commentsystem.dao.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -18,6 +19,7 @@ import java.util.Set;
 @Getter
 @Table
 @Entity(name = "comment")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Comment implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,16 +28,20 @@ public class Comment implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id")
     @JsonIgnore
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Users user;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "meeting_id")
     @JsonIgnore
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Meeting meeting;
     @OneToMany(mappedBy = "comment", orphanRemoval = true, cascade = CascadeType.ALL)
     @JsonIgnore
     private Set<Vote> votes;
-    @OneToMany(fetch = FetchType.LAZY)
-    private List<Comment> repliedComments;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnore
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private Comment parentComment;
     @CreationTimestamp
     private LocalDateTime createdAt;
     @UpdateTimestamp
@@ -60,8 +66,6 @@ public class Comment implements Serializable {
         vote.setComment(null);
     }
 
-    public void addReply(Comment comment){
-        repliedComments.add(comment);
-    }
+
 
 }

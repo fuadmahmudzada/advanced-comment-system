@@ -28,7 +28,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, JpaSpec
             """)
     List<Comment> findAllCommentsByCommentId(Long commentId);
 
-    @Query(nativeQuery = true, value = "SELECT c.* FROM comment c where c.meeting_id = :meetingId and c.id not in (select replied_comments_id from comment_replied_comments) ")
+    @Query(nativeQuery = true, value = "SELECT c.* FROM comment c where c.meeting_id = :meetingId and c.parent_comment_id = -1")
     Page<Comment> findAllPageable(Pageable pageable, Long meetingId);
 
     @Query(nativeQuery = true, value = "SELECT count(*) from comment_replied_comments where comment_id = :commentId")
