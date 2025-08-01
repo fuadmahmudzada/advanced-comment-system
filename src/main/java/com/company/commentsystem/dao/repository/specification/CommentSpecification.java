@@ -3,8 +3,10 @@ package com.company.commentsystem.dao.repository.specification;
 import com.company.commentsystem.dao.entity.Comment;
 import com.company.commentsystem.dao.repository.CommentRepository;
 import com.company.commentsystem.model.enums.CommentSearch;
+import com.company.commentsystem.model.enums.SortType;
 import com.company.commentsystem.service.CommentService;
 import jakarta.persistence.criteria.*;
+import org.hibernate.query.criteria.JpaOrder;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.stereotype.Component;
@@ -23,6 +25,10 @@ public class CommentSpecification {
     private List<Long> idList = new ArrayList<>();
     public Specification<Comment> hasContent(String text) {
         return (root, query, criteriaBuilder) -> criteriaBuilder.like(root.get("content"), "%" + text + "%");
+    }
+    public Specification<Comment> orderBy(SortType sortType){
+
+        return ((root, query, criteriaBuilder) -> query.orderBy(criteriaBuilder.asc(root.get(""))))
     }
 
     private int count = 0;

@@ -2,6 +2,8 @@ package com.company.commentsystem.dao.repository;
 
 import com.company.commentsystem.dao.entity.Comment;
 import com.company.commentsystem.dao.entity.Vote;
+import jakarta.annotation.Nullable;
+import jakarta.persistence.NamedNativeQuery;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -37,8 +39,24 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, JpaSpec
     List<Comment> findAllByContentLike(String content);
     List<Comment> findAllByParentComment(Comment parentComment);
     
-    List<Comment> findAllByParentComment_Id(Long parentCommentId);
+    Page<Comment> findAllByParentComment_Id(Long parentCommentId, Pageable pageable);
+
+    //@Query("SELECT c from Comment c JOIN c.meeting m WHERE c.meeting.id = m.id AND c.parentComment IS NULL AND m.platformLink = :meetingPlatformLink")
+    @Query(value = "SELECT c.* from comment c JOIN meeting m on c.meeting_id = m.id WHERE  c.parent_comment_id IS NULL AND m.platform_link = :meetingPlatformLink", nativeQuery = true)
+    Page<Comment> findAllByMeeting_PlatformLink(String meetingPlatformLink, Pageable pageable);
+
+    Long countByParentComment_Id(Long parentCommentId);
+
+    @NamedNativeQuery()
+    Page<Comment> findAllByMeeting_PlatformLinkAndParentComment(String meetingPlatformLink, Comment parentComment, Pageable pageable);
 //    @Query("SELECT c FROM comment c WHERE c.meeting.id = :meetingId AND c.id NOT IN (SELECT rc.repliedComments FROM comment c1 RIGHT JOIN c1.repliedComments rc)")
 //    Page<Comment> findAllSpec(Specification<Comment> spec, Pageable pageable, @Param("meetingId") Long meetingId);
 
+    @Query(value = "select count(*) from vote v  where v.voteStatus = 'UP' and v.commentId = :commentId", nativeQuery = true)
+    Long findUpVotesCount(Long commentId);
+
+//
+//    @Override
+//    @Query("SELECT c.id, c.content, c.createdAt, c.updatedAt, c.user, c.votes, c.parentComment, c.meeting, c.u from Comment c")
+//    Page<Comment> findAll(@Nullable Specification<Comment> specification, Pageable pageable);
 }

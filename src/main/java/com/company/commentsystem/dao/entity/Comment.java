@@ -19,8 +19,9 @@ import java.util.Set;
 @Setter
 @Getter
 @Table
-@Entity(name = "comment")
+@Entity
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@NamedNativeQuery(query = "select count(*) from vote v  where v.voteStatus = 'UP' and v.commentId = :commentId", name = "findUpVoteCount")
 public class Comment implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -45,6 +46,9 @@ public class Comment implements Serializable {
     private Comment parentComment;
     @Transient
     private Boolean isInSearchResult = false;
+    @Access(AccessType.PROPERTY)
+    @Transient
+    private Long upVotes;
     @CreationTimestamp
     private LocalDateTime createdAt;
     @UpdateTimestamp
@@ -69,6 +73,11 @@ public class Comment implements Serializable {
         vote.setComment(null);
     }
 
+    @PostLoad
+    private void fillUpVotes(){
+        this.upVotes = entityManager.
+
+    }
 
     @Override
     public String toString(){

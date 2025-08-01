@@ -56,9 +56,11 @@ public class CommentController {
     }
 
     @GetMapping("/{platformLink}")
-    public List<CommentDto> getAllComments(@PathVariable String platformLink) {
+    public Page<CommentDto> getAllComments(@PathVariable String platformLink, @RequestParam SortType sortType,
+                                           @RequestHeader(name = "parent-id") Long parentId, @RequestParam(name = "page-number") int pageNumber,
+                                           @RequestParam(name = "page-size") int pageSize) {
         //  List<CommentDto> list = objectHashOperations.entries("COMMENTS").values().stream().map(comment -> new CommentDto(comment.getId(), comment.getContent(), comment.getFullName(), comment.getCreatedAt())).toList();
-        return commentService.getComments(platformLink);
+        return commentService.getComments(platformLink, parentId, sortType, pageNumber, pageSize);
     }
 
     //Jedis jedis = connectionManager.getConnection()
@@ -94,11 +96,6 @@ public class CommentController {
     @GetMapping("/search")
     public ResponseEntity<Page<CommentDto>> searchComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize, @RequestParam SortType sortType, @RequestParam Long meetingId, @RequestParam CommentSearch commentSearch, @RequestParam String content){
         return ResponseEntity.ok(commentService.searchComments(sortType, pageNumber, pageSize, meetingId, new CommentSearchDto(commentSearch, content) ));
-    }
-
-    @GetMapping("/getAllComments")
-    public ResponseEntity<Page<Comment>> getAllComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize){
-        return ResponseEntity.ok(commentRepository.findAll(PageRequest.of(pageNumber, pageSize)));
     }
 
 

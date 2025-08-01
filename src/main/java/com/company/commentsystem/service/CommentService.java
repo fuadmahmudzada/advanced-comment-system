@@ -112,20 +112,25 @@ public class CommentService {
     }
 
 
-    public List<CommentDto> getComments(String platformLink) {
-        System.out.println(commentRepository.findAllByMeeting_PlatformLinkOrderByVoteDesc(platformLink).getFirst().getUser());
-        List<Comment> comments = commentRepository.findAllByMeeting_PlatformLinkOrderByVoteDesc(platformLink);
-        List<CommentDto> commentDtos = comments.stream().map(
+    public Page<CommentDto> getComments(String platformLink, Long parentId, SortType sortType, Integer pageNumber, Integer pageSize) {
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, constructSorting(sortType));
+        Page<Comment> comments;
+        if (parentId == -1) {
+            comments = commentRepository.findAllByMeeting_PlatformLinkAndParentComment(platformLink, null, pageable);
+        } else {
+            comments = commentRepository.findAllByParentComment_Id(parentId, pageable);
+        }
+
+        return comments.map(
                 comment -> {
                     return new CommentDto(comment.getId(),
                             comment.getContent(),
                             comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count(),
                             comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count(),
                             comment.getUser().getId(),
-                            comment.getCreatedAt(), commentRepository.countByComment_Id(comment.getId()));
+                            comment.getCreatedAt(), commentRepository.countByParentComment_Id(comment.getId()));
 
-                }).toList();
-        return commentDtos;
+                });
     }
 
     public CommentDto getCommentById(Long id) {
@@ -383,19 +388,19 @@ public class CommentService {
 
 
     private Sort constructSorting(SortType sortType) {
-        Sort liked = JpaSort.unsafe("(select count(*) from vote where vote_status = 'UP' and comment_id = c.id) - (select count(*) from vote where vote_status = 'DOWN' and comment_id = c.id)");
+        Sort liked = JpaSort.unsafe(" (select count(*) from vote where vote_status = 'UP' and comment_id = c.id) - (select count(*) from vote where vote_status = 'DOWN' and comment_id = c.id)");
         return switch (sortType) {
             case BEST -> liked.descending();
             case NEW -> Sort.by("createdAt").descending();
             case OLD -> Sort.by("createdAt").ascending();
             case LEAST_LIKED -> liked.ascending();
             case TOP ->
-                    JpaSort.unsafe("(select count(*) from vote where vote_status = 'UP' and comment_id = c.id)").descending();
+                    JpaSort.unsafe("(select count(v) from Vote v where v.voteStatus = 'UP' and v.commentId = c.id)").descending();
             case HOT -> JpaSort.unsafe("""
-                     log(abs((select count(*) from vote where vote_status = 'UP' and\s
+                     log(abs( (select count(*) from vote where vote_status = 'UP' and
                      comment_id = c.id) - (select count(*) from vote where vote_status = 'DOWN'
-                     and comment_id = c.id))) + (extract(epoch from (now() - c.created_at))/4500)
-                    \s""");
+                     and comment_id = c.id) )) + (extract(epoch from (now() - c.created_at))/4500)
+                    """);
         };
     }
 
