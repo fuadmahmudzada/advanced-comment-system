@@ -26,6 +26,16 @@ public class CommentSpecification {
     }
 
     private int count = 0;
+
+//    Specification<Comment> getAllComments(CommentSearch commentSearch, Long meetingId){
+//        return new Specification<Comment>() {
+//            @Override
+//            public Predicate toPredicate(Root<Comment> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder) {
+//                Predicate equalToMeetingId = criteriaBuilder.equal(root.get("meeting").get("id"), meetingId);
+//            }
+//        }
+//    }
+//
     public Specification<Comment> getAllParentComments(CommentSearch commentSearch, Long meetingId) {
         return new Specification<Comment>() {
             /*

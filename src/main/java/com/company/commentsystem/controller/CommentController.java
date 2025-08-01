@@ -16,6 +16,7 @@ import org.redisson.api.RMap;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -90,10 +91,14 @@ public class CommentController {
 //        return ResponseEntity.ok(commentService.getAllCommentsByCommentId(commentId));
 //    }
 
-    @GetMapping
-    public ResponseEntity<List<CommentDto>> getAllPageableComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize, @RequestParam SortType sortType, @RequestParam Long meetingId, @RequestParam CommentSearch commentSearch, @RequestParam String content){
+    @GetMapping("/search")
+    public ResponseEntity<Page<CommentDto>> searchComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize, @RequestParam SortType sortType, @RequestParam Long meetingId, @RequestParam CommentSearch commentSearch, @RequestParam String content){
+        return ResponseEntity.ok(commentService.searchComments(sortType, pageNumber, pageSize, meetingId, new CommentSearchDto(commentSearch, content) ));
+    }
 
-        return ResponseEntity.ok(commentService.getAllPageableComments(sortType, pageNumber, pageSize, meetingId, new CommentSearchDto(commentSearch, content) ));
+    @GetMapping("/getAllComments")
+    public ResponseEntity<Page<Comment>> getAllComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize){
+        return ResponseEntity.ok(commentRepository.findAll(PageRequest.of(pageNumber, pageSize)));
     }
 
 

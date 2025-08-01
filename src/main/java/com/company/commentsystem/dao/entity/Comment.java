@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import lombok.Value;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -42,6 +43,8 @@ public class Comment implements Serializable {
     @JsonIgnore
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Comment parentComment;
+    @Transient
+    private Boolean isInSearchResult = false;
     @CreationTimestamp
     private LocalDateTime createdAt;
     @UpdateTimestamp
@@ -67,5 +70,9 @@ public class Comment implements Serializable {
     }
 
 
+    @Override
+    public String toString(){
+        return "id: " + id;
+    }
 
 }
