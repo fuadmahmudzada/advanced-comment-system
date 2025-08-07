@@ -12,6 +12,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,15 +40,13 @@ public class Comment implements Serializable {
     private Meeting meeting;
     @OneToMany(mappedBy = "comment", orphanRemoval = true, cascade = CascadeType.ALL)
     @JsonIgnore
-    private Set<Vote> votes;
+    private Set<Vote> votes = new HashSet<>();
     @ManyToOne(fetch = FetchType.LAZY)
     @JsonIgnore
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Comment parentComment;
     @Transient
     private Boolean isInSearchResult = false;
-    @Access(AccessType.PROPERTY)
-    @Transient
     private Long upVotes;
     @CreationTimestamp
     private LocalDateTime createdAt;
@@ -73,11 +72,11 @@ public class Comment implements Serializable {
         vote.setComment(null);
     }
 
-    @PostLoad
-    private void fillUpVotes(){
-        this.upVotes = entityManager.
-
-    }
+//    @PostLoad
+//    private void fillUpVotes(){
+//        this.upVotes = entityManager.
+//
+//    }
 
     @Override
     public String toString(){

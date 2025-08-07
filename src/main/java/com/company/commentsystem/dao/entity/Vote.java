@@ -23,7 +23,7 @@ public class Vote {
     private Comment comment;
     @Enumerated(EnumType.STRING)
     private VoteStatus voteStatus;
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JsonIgnore
     private Users user;
     @CreationTimestamp

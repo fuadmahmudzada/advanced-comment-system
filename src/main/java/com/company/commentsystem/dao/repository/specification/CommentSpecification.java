@@ -1,19 +1,36 @@
 package com.company.commentsystem.dao.repository.specification;
 
 import com.company.commentsystem.dao.entity.Comment;
+import com.company.commentsystem.dao.entity.Users;
+import com.company.commentsystem.dao.entity.Vote;
 import com.company.commentsystem.dao.repository.CommentRepository;
 import com.company.commentsystem.model.enums.CommentSearch;
 import com.company.commentsystem.model.enums.SortType;
+import com.company.commentsystem.model.enums.VoteStatus;
 import com.company.commentsystem.service.CommentService;
+import jakarta.persistence.Temporal;
 import jakarta.persistence.criteria.*;
+import org.hibernate.query.criteria.HibernateCriteriaBuilder;
+import org.hibernate.query.criteria.JpaExpression;
 import org.hibernate.query.criteria.JpaOrder;
+import org.hibernate.query.sqm.IntervalType;
+import org.hibernate.query.sqm.NodeBuilder;
+import org.hibernate.query.sqm.TemporalUnit;
+import org.hibernate.query.sqm.tree.expression.SqmExtractUnit;
+import org.hibernate.query.sqm.tree.select.SqmSortSpecification;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.stereotype.Component;
 
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.text.CollationKey;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Stream;
 
 @Component
 public class CommentSpecification {
@@ -22,18 +39,97 @@ public class CommentSpecification {
     public CommentSpecification(CommentRepository commentRepository) {
         this.commentRepository = commentRepository;
     }
-    private List<Long> idList = new ArrayList<>();
+
+    //burda en sondaki id leri saxlayiriq sonra burdaki idlere gore
+    //parent i bunlar olan commentleri tapiriq bu da depth deyende cemin nece addim duseceyini gosterir
+    //1 depth post commentleridir yeni. Butun sondaki parent idlere gore commentleri tapir
+    private List<Long> finalParentCommentIdList = new ArrayList<>();
+
     public Specification<Comment> hasContent(String text) {
         return (root, query, criteriaBuilder) -> criteriaBuilder.like(root.get("content"), "%" + text + "%");
     }
-    public Specification<Comment> orderBy(SortType sortType){
 
-        return ((root, query, criteriaBuilder) -> query.orderBy(criteriaBuilder.asc(root.get(""))))
+    //
+    public Order orderBy(Root<Comment> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder, SortType sortType) {
+        Subquery<Long> subquery = query.subquery(Long.class);
+        Subquery<Long> downdVotesSubquery = query.subquery(Long.class);
+        Root<Vote> voteRoot = subquery.from(Vote.class);
+        Root<Vote> downVoteSubqueryRoot = downdVotesSubquery.from(Vote.class);
+        Expression<Long> liked = criteriaBuilder.diff(subquery.select(criteriaBuilder.count(voteRoot)).where(criteriaBuilder.and(criteriaBuilder.equal(voteRoot.get("voteStatus"), VoteStatus.UP),
+                criteriaBuilder.equal(voteRoot.get("comment").get("id"), root.get("id")))), downdVotesSubquery.select(criteriaBuilder.count(downVoteSubqueryRoot)).where(criteriaBuilder.and(criteriaBuilder.equal(downVoteSubqueryRoot.get("voteStatus"), VoteStatus.DOWN),
+                criteriaBuilder.equal(downVoteSubqueryRoot.get("comment").get("id"), root.get("id")))));
+
+        return switch (sortType) {
+            case TOP ->
+                    criteriaBuilder.desc(subquery.select(criteriaBuilder.count(voteRoot)).where(criteriaBuilder.and(criteriaBuilder.equal(voteRoot.get("voteStatus"), "UP"),
+                            criteriaBuilder.equal(voteRoot.get("comment").get("id"), root.get("id")))));
+            case BEST -> criteriaBuilder.desc(liked);
+            case HOT -> {
+                HibernateCriteriaBuilder hcb = (HibernateCriteriaBuilder) criteriaBuilder;
+                Expression<Long> secondsPassed = hcb.durationByUnit(TemporalUnit.SECOND, hcb.durationBetween(hcb.currentInstant(), root.get("createdAt")));
+
+                Long a = 11l;
+                Double b = (double) a;
+                System.out.println("SECONDSPASSED" + secondsPassed);
+                System.out.println("ABS" + criteriaBuilder.abs(liked));
+//                CriteriaBuilder.Case<Vote> voteCase = criteriaBuilder.selectCase();
+//                Expression<Long> expression = criteriaBuilder.abs(liked);
+//                Expression<Double> log = hcb.log(10, criteriaBuilder.abs(liked));
+//                Long abc = 1L;
+//
+//                Expression<Long> when = criteriaBuilder.selectCase()
+//                        .when(criteriaBuilder.notEqual(criteriaBuilder.abs(liked), 0).as(Boolean.class),
+//                                1L).otherwise(1L);
+//
+//                Stream<CharSequence> stream = Stream.of("a", (CharSequence) "b").distinct();
+//
+//                List<Users> list = Arrays.asList(new Users(), new Users());
+//                list.stream().sorted(Comparator.comparing(u->u.getFullName()).reversed());
+//                list.sort(Comparator.comparing(u->u.getFullName()).reversed());
+//                list.stream().filter(x->x.getId()==1).map(x->x.getFullName()).findFirst();
+//
+//                Comparator<Users> comparator = Comparator.comparing(u->u.getFullName()).reversed();
+//
+//
+//                Expression<Number> test = criteriaBuilder.selectCase()
+//                        .when(criteriaBuilder.notEqual(criteriaBuilder.abs(liked), 0),
+//                                hcb.log(10, criteriaBuilder.abs(liked)) )
+//                        .otherwise(criteriaBuilder.abs(liked));
+//                CriteriaBuilder.Case<Number> caseLog = criteriaBuilder.selectCase();
+//                caseLog = caseLog.when(criteriaBuilder.notEqual(criteriaBuilder.abs(liked), 0),
+//                        hcb.log(10, criteriaBuilder.abs(liked)));
+                //caseLog.otherwise(criteriaBuilder.abs(liked))
+
+                Expression<Number> logExpression = criteriaBuilder.<Number>selectCase().when(criteriaBuilder.notEqual(criteriaBuilder.abs(liked), 0),
+                        hcb.log(10, criteriaBuilder.abs(liked))).otherwise(criteriaBuilder.abs(liked));
+                yield criteriaBuilder.desc(criteriaBuilder.sum(logExpression, criteriaBuilder.quot(secondsPassed, 4500)));
+            }
+            case NEW -> criteriaBuilder.desc(root.get("createdAt"));
+            case OLD -> criteriaBuilder.asc(root.get("createdAt"));
+            case LEAST_LIKED -> criteriaBuilder.asc(liked);
+        };
+
+
+    }
+
+    public Specification<Comment> filterComments(String meetingPlatformLink, Long parentCommentId, SortType sortType) {
+        return (root, query, criteriaBuilder) -> {
+
+            Predicate parentCommentPredicate;
+            if (parentCommentId == null) {
+                parentCommentPredicate = criteriaBuilder.isNull(root.get("parentComment").get("id"));
+            } else {
+                parentCommentPredicate = criteriaBuilder.equal(root.get("parentComment").get("id"), parentCommentId);
+            }
+            query.orderBy(orderBy(root, query, criteriaBuilder, sortType));
+            return criteriaBuilder.and(criteriaBuilder.equal(root.get("meeting").get("platformLink"), meetingPlatformLink), parentCommentPredicate
+            );
+        };
     }
 
     private int count = 0;
 
-//    Specification<Comment> getAllComments(CommentSearch commentSearch, Long meetingId){
+    //    Specification<Comment> getAllComments(CommentSearch commentSearch, Long meetingId){
 //        return new Specification<Comment>() {
 //            @Override
 //            public Predicate toPredicate(Root<Comment> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder) {
@@ -42,7 +138,7 @@ public class CommentSpecification {
 //        }
 //    }
 //
-    public Specification<Comment> getAllParentComments(CommentSearch commentSearch, Long meetingId) {
+    public Specification<Comment> containsCommentsInDefinedDepth(CommentSearch commentSearch, Long meetingId, SortType sortType) {
         return new Specification<Comment>() {
             /*
                 SELECT c.* FROM comment c where c.meeting_id = :meetingId and c.id
@@ -54,39 +150,48 @@ public class CommentSpecification {
             @Override
             public Predicate toPredicate(Root<Comment> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder) {
                 CommentSearch firstValue = null;
-                if(count!=1){
-                     firstValue = commentSearch;
-                     count++;
+                if (count != 1) {
+                    firstValue = commentSearch;
+                    count++;
                 }
                 List<Predicate> predicates = new ArrayList<>();
                 Predicate equalToMeetingId = criteriaBuilder.equal(root.get("meeting").get("id"), meetingId);
 
 
+//                Subquery<Long> subquery = query.subquery(Long.class);
+//                Root<Vote> voteRoot = subquery.from(Vote.class);
+//                subquery.select(criteriaBuilder.count(voteRoot)).where(criteriaBuilder.and(criteriaBuilder.equal(voteRoot.get("voteStatus"), "UP"),
+//                        criteriaBuilder.equal(voteRoot.get("comment").get("id"), root.get("id"))));
+//
+//                query.orderBy(criteriaBuilder.asc(subquery));
+                query.orderBy(orderBy(root, query, criteriaBuilder, sortType));
                 if (commentSearch == CommentSearch.SUBCOMMENTS_DEPTH_1) {
                     predicates.add(criteriaBuilder.isNull(root.get("parentComment").get("id")));
-                    if(firstValue==CommentSearch.SUBCOMMENTS_DEPTH_1){
+                    if (firstValue == CommentSearch.SUBCOMMENTS_DEPTH_1) {
                         count = 0;
                     }
                 } else if (commentSearch != CommentSearch.SUBCOMMENTS_ALL) {
-                    List<Comment> comments = commentRepository.findAll(getAllParentComments(CommentSearch
-                            .getInstance(commentSearch.getOrd() - 1), meetingId));
+                    List<Comment> childComments = commentRepository.findAll(containsCommentsInDefinedDepth(CommentSearch
+                            .getInstance(commentSearch.getOrd() - 1), meetingId, sortType));
 
-                    idList.addAll(comments.stream().map(x->x.getId()).toList());
-                    if(commentSearch.equals(firstValue)){
-                        predicates.add(root.get("parentComment").get("id").in(idList));
+                    finalParentCommentIdList.addAll(childComments.stream().map(x -> x.getId()).toList());
+                    if (commentSearch.equals(firstValue)) {
+                        System.out.println("final parent comment "+finalParentCommentIdList);
+                        //derinliye uygun gelen commentleri tap
+                        predicates.add(root.get("parentComment").get("id").in(finalParentCommentIdList));
                         predicates.add(criteriaBuilder.isNull(root.get("parentComment").get("id")));
-                        count=0;
-                        idList = new ArrayList<>();
-                    } else{
-                        predicates.add(root.get("parentComment").get("id").in(comments.stream()
+                        count = 0;
+                        finalParentCommentIdList = new ArrayList<>();
+                    } else {
+                        predicates.add(root.get("parentComment").get("id").in(childComments.stream()
                                 .map(x -> x.getId()).toList()));
                     }
                 }
-                if(!predicates.isEmpty()) {
+                if (!predicates.isEmpty()) {
                     Predicate orPredicate = criteriaBuilder.or(predicates.toArray(new Predicate[0]));
 
                     return criteriaBuilder.and(equalToMeetingId, orPredicate);
-                } else{
+                } else {
                     return equalToMeetingId;
                 }
 

@@ -65,8 +65,8 @@ public class CommentController {
 
     //Jedis jedis = connectionManager.getConnection()
     @PostMapping("/{id}")
-    public ResponseEntity<String> vote(@PathVariable Long id, @RequestBody VoteRequestDto voteRequestDto) {
-        commentService.voteFromDb(id, voteRequestDto);
+    public ResponseEntity<String> vote(@PathVariable("id") Long commentId, @RequestBody VoteRequestDto voteRequestDto) {
+        commentService.voteFromDb(commentId, voteRequestDto);
 
         return ResponseEntity.status(HttpStatus.OK).body(String.format("%s updated", voteRequestDto.getVoteStatus().toString()));
     }
