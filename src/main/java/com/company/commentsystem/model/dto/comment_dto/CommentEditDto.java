@@ -1,9 +1,8 @@
-package com.company.commentsystem.model.dto;
+package com.company.commentsystem.model.dto.comment_dto;
 
 import lombok.Getter;
 
 @Getter
 public class CommentEditDto {
-    private Long id;
     private String content;
 }

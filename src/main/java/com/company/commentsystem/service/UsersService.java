@@ -5,12 +5,14 @@ import com.company.commentsystem.dao.repository.UsersRepository;
 import com.company.commentsystem.utils.SuffixGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 public class UsersService {
     private final UsersRepository usersRepository;
     private final SuffixGenerator suffixGenerator = new SuffixGenerator();
+    @Transactional
     public String register(String fullName){
         Users user = new Users(fullName + "-" + suffixGenerator.generateName());
         return usersRepository.save(user).getFullName();

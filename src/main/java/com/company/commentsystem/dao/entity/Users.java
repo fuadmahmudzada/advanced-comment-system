@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.lang3.builder.ToStringExclude;
 
 import java.util.List;
 import java.util.Set;
@@ -26,9 +27,11 @@ public class Users {
             CascadeType.REFRESH,
             CascadeType.DETACH
     })
+    @ToStringExclude
     private List<Comment> comments;
 
     @OneToMany(mappedBy = "user")
+    @ToStringExclude
     private Set<Vote> votes;
 
     public Users(String fullName) {
@@ -59,7 +62,12 @@ public class Users {
         vote.setUser(null);
     }
 
+
     public String toString() {
-        return "Users(id=" + this.getId() + ", fullName=" + this.getFullName() + ", comments=" + this.getComments() + ", votes="  + ")";
+        return "Users(id=" +
+                this.getId() +
+                ", fullName=" +
+                this.getFullName() +
+                ")";
     }
 }

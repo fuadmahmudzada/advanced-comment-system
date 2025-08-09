@@ -1,7 +1,6 @@
 package com.company.commentsystem;
 
-import com.company.commentsystem.dao.entity.Comment;
-import com.company.commentsystem.model.dto.CommentDto;
+import com.company.commentsystem.model.dto.comment_dto.CommentDto;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;

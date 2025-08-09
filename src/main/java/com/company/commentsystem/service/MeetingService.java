@@ -6,6 +6,7 @@ import com.company.commentsystem.model.dto.meeting.MeetingCreateDto;
 import com.company.commentsystem.model.dto.meeting.MeetingResponseDto;
 import com.company.commentsystem.utils.SuffixGenerator;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MeetingService {
@@ -15,6 +16,7 @@ public class MeetingService {
         this.meetingRepository = meetingRepository;
     }
 
+    @Transactional
     public MeetingResponseDto create(MeetingCreateDto meetingCreateDto){
         Meeting meeting = new Meeting();
         meeting.setLink(meetingCreateDto.getLink());

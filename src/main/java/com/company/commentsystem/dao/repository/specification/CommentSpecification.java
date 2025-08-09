@@ -1,36 +1,18 @@
 package com.company.commentsystem.dao.repository.specification;
 
 import com.company.commentsystem.dao.entity.Comment;
-import com.company.commentsystem.dao.entity.Users;
 import com.company.commentsystem.dao.entity.Vote;
 import com.company.commentsystem.dao.repository.CommentRepository;
-import com.company.commentsystem.model.enums.CommentSearch;
+import com.company.commentsystem.model.enums.CommentSearchDeepness;
 import com.company.commentsystem.model.enums.SortType;
 import com.company.commentsystem.model.enums.VoteStatus;
-import com.company.commentsystem.service.CommentService;
-import jakarta.persistence.Temporal;
 import jakarta.persistence.criteria.*;
 import org.hibernate.query.criteria.HibernateCriteriaBuilder;
-import org.hibernate.query.criteria.JpaExpression;
-import org.hibernate.query.criteria.JpaOrder;
-import org.hibernate.query.sqm.IntervalType;
-import org.hibernate.query.sqm.NodeBuilder;
 import org.hibernate.query.sqm.TemporalUnit;
-import org.hibernate.query.sqm.tree.expression.SqmExtractUnit;
-import org.hibernate.query.sqm.tree.select.SqmSortSpecification;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.stereotype.Component;
 
-import java.sql.Date;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.text.CollationKey;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Stream;
 
 @Component
 public class CommentSpecification {
@@ -112,7 +94,7 @@ public class CommentSpecification {
 
     }
 
-    public Specification<Comment> filterComments(String meetingPlatformLink, Long parentCommentId, SortType sortType) {
+    public Specification<Comment> hasParent(String meetingPlatformLink, Long parentCommentId, SortType sortType) {
         return (root, query, criteriaBuilder) -> {
 
             Predicate parentCommentPredicate;
@@ -129,7 +111,7 @@ public class CommentSpecification {
 
     private int count = 0;
 
-    //    Specification<Comment> getAllComments(CommentSearch commentSearch, Long meetingId){
+    //    Specification<Comment> getAllComments(CommentSearchDeepness commentSearchDeepness, Long meetingId){
 //        return new Specification<Comment>() {
 //            @Override
 //            public Predicate toPredicate(Root<Comment> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder) {
@@ -138,7 +120,7 @@ public class CommentSpecification {
 //        }
 //    }
 //
-    public Specification<Comment> containsCommentsInDefinedDepth(CommentSearch commentSearch, Long meetingId, SortType sortType) {
+    public Specification<Comment> containsCommentsInDefinedDepth(CommentSearchDeepness commentSearchDeepness, Long meetingId, SortType sortType) {
         return new Specification<Comment>() {
             /*
                 SELECT c.* FROM comment c where c.meeting_id = :meetingId and c.id
@@ -149,9 +131,9 @@ public class CommentSpecification {
             */
             @Override
             public Predicate toPredicate(Root<Comment> root, CriteriaQuery<?> query, CriteriaBuilder criteriaBuilder) {
-                CommentSearch firstValue = null;
+                CommentSearchDeepness firstValue = null;
                 if (count != 1) {
-                    firstValue = commentSearch;
+                    firstValue = commentSearchDeepness;
                     count++;
                 }
                 List<Predicate> predicates = new ArrayList<>();
@@ -165,17 +147,17 @@ public class CommentSpecification {
 //
 //                query.orderBy(criteriaBuilder.asc(subquery));
                 query.orderBy(orderBy(root, query, criteriaBuilder, sortType));
-                if (commentSearch == CommentSearch.SUBCOMMENTS_DEPTH_1) {
+                if (commentSearchDeepness == CommentSearchDeepness.SUBCOMMENTS_DEPTH_1) {
                     predicates.add(criteriaBuilder.isNull(root.get("parentComment").get("id")));
-                    if (firstValue == CommentSearch.SUBCOMMENTS_DEPTH_1) {
+                    if (firstValue == CommentSearchDeepness.SUBCOMMENTS_DEPTH_1) {
                         count = 0;
                     }
-                } else if (commentSearch != CommentSearch.SUBCOMMENTS_ALL) {
-                    List<Comment> childComments = commentRepository.findAll(containsCommentsInDefinedDepth(CommentSearch
-                            .getInstance(commentSearch.getOrd() - 1), meetingId, sortType));
+                } else if (commentSearchDeepness != CommentSearchDeepness.SUBCOMMENTS_ALL) {
+                    List<Comment> childComments = commentRepository.findAll(containsCommentsInDefinedDepth(CommentSearchDeepness
+                            .getInstance(commentSearchDeepness.getOrd() - 1), meetingId, sortType));
 
                     finalParentCommentIdList.addAll(childComments.stream().map(x -> x.getId()).toList());
-                    if (commentSearch.equals(firstValue)) {
+                    if (commentSearchDeepness.equals(firstValue)) {
                         System.out.println("final parent comment "+finalParentCommentIdList);
                         //derinliye uygun gelen commentleri tap
                         predicates.add(root.get("parentComment").get("id").in(finalParentCommentIdList));

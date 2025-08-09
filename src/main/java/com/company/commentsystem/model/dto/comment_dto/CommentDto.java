@@ -1,13 +1,10 @@
-package com.company.commentsystem.model.dto;
+package com.company.commentsystem.model.dto.comment_dto;
 
-import com.company.commentsystem.dao.entity.Comment;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
 import java.io.Serializable;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
