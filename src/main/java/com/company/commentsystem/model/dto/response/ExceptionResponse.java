@@ -1,4 +1,4 @@
-package com.company.commentsystem.model.dto;
+package com.company.commentsystem.model.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

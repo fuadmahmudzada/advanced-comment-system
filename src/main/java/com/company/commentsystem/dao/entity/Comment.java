@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.io.Serializable;
@@ -35,7 +37,7 @@ public class Comment implements Serializable {
     @JsonIgnore
 //    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Meeting meeting;
-    @OneToMany(mappedBy = "comment", orphanRemoval = true, cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "comment",  orphanRemoval = true, cascade =    CascadeType.ALL, fetch = FetchType.EAGER)
     @JsonIgnore
     private Set<Vote> votes = new HashSet<>();
     @ManyToOne(fetch = FetchType.LAZY)
@@ -44,6 +46,8 @@ public class Comment implements Serializable {
     private Comment parentComment;
     @Transient
     private Boolean isInSearchResult = false;
+    @ColumnDefault("false")
+    private Boolean isDeleted = false;
     @CreationTimestamp
     private LocalDateTime createdAt;
     @UpdateTimestamp

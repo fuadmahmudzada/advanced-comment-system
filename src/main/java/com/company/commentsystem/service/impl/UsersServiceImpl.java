@@ -1,7 +1,8 @@
-package com.company.commentsystem.service;
+package com.company.commentsystem.service.impl;
 
 import com.company.commentsystem.dao.entity.Users;
 import com.company.commentsystem.dao.repository.UsersRepository;
+import com.company.commentsystem.service.UserService;
 import com.company.commentsystem.utils.SuffixGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -9,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class UsersService {
+public class UsersServiceImpl implements UserService {
     private final UsersRepository usersRepository;
     private final SuffixGenerator suffixGenerator = new SuffixGenerator();
     @Transactional

@@ -1,4 +1,4 @@
-package com.company.commentsystem.model.dto;
+package com.company.commentsystem.model.dto.vote_dto;
 
 import lombok.Getter;
 import lombok.Setter;

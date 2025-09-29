@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface CommentRepository extends JpaRepository<Comment, Long>, JpaSpecificationExecutor<Comment> {
@@ -72,4 +73,8 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, JpaSpec
 //    @Override
 //    @Query("SELECT c.id, c.content, c.createdAt, c.updatedAt, c.user, c.votes, c.parentComment, c.meeting, c.u from Comment c")
 //    Page<Comment> findAll(@Nullable Specification<Comment> specification, Pageable pageable);
+
+    List<Comment> findAllByParentComment_Id(Long parentCommentId);
+
+    Long countAllByParentComment_Id(Long parentCommentId);
 }

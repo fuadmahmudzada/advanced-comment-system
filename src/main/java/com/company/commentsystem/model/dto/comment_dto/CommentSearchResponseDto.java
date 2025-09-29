@@ -17,12 +17,14 @@ public class CommentSearchResponseDto {
     private LocalDateTime createdAt;
     private Boolean isInSearchResult;
     private List<CommentSearchResponseDto> replies;
+    private Boolean isDeleted;
 
-    public CommentSearchResponseDto(Long id, String content, Long upVotes, Long downVotes, LocalDateTime createdAt) {
+    public CommentSearchResponseDto(Long id, String content, Long upVotes, Long downVotes, LocalDateTime createdAt, Boolean isDeleted) {
         this.id = id;
         this.content = content;
         this.upVotes = upVotes;
         this.downVotes = downVotes;
         this.createdAt = createdAt;
+        this.isDeleted = isDeleted;
     }
 }

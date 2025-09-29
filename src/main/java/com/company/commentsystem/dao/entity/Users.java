@@ -56,6 +56,9 @@ public class Users {
         votes.add(vote);
         vote.setUser(this);
     }
+    public void someMethod(){
+
+    }
 
     public void removeVote(Vote vote) {
         votes.remove(vote);

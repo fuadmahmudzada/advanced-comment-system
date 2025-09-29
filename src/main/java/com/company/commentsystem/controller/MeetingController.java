@@ -1,26 +1,27 @@
 package com.company.commentsystem.controller;
 
-import com.company.commentsystem.dao.entity.Meeting;
+import com.company.commentsystem.model.ResponseUtil;
+import com.company.commentsystem.model.dto.response.ApiResponse;
 import com.company.commentsystem.model.dto.meeting.MeetingCreateDto;
 import com.company.commentsystem.model.dto.meeting.MeetingResponseDto;
-import com.company.commentsystem.service.MeetingService;
+import com.company.commentsystem.service.impl.MeetingServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-
 @RestController
 @RequestMapping("v1/meeting")
 @RequiredArgsConstructor
 public class MeetingController {
-    private final MeetingService meetingService;
+    private final MeetingServiceImpl meetingServiceImpl;
 
     @PostMapping
-    public ResponseEntity<MeetingResponseDto> create(@RequestBody MeetingCreateDto meetingCreateDto) throws URISyntaxException {
-        MeetingResponseDto meetingResponseDto = meetingService.create(meetingCreateDto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(meetingResponseDto);
+    public ResponseEntity<ApiResponse<MeetingResponseDto>> create(@RequestBody MeetingCreateDto meetingCreateDto) {
+        MeetingResponseDto meetingResponseDto = meetingServiceImpl.create(meetingCreateDto);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                ResponseUtil.success( "Meeting created", meetingResponseDto, null)
+        );
     }
 }

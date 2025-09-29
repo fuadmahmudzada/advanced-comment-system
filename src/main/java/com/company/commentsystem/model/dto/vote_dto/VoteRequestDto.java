@@ -1,6 +1,5 @@
-package com.company.commentsystem.model.dto;
+package com.company.commentsystem.model.dto.vote_dto;
 
-import com.company.commentsystem.dao.entity.Users;
 import com.company.commentsystem.model.enums.VoteStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
