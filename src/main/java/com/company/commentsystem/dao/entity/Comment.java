@@ -3,8 +3,10 @@ package com.company.commentsystem.dao.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.SQLDelete;
@@ -20,7 +22,7 @@ import java.util.Set;
 @Getter
 @Table
 @Entity
-//@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 //@NamedNativeQuery(query = "select count(*) from vote v  where v.voteStatus = 'UP' and v.commentId = :commentId", name = "findUpVoteCount")
 public class Comment implements Serializable {
     @Id
@@ -30,19 +32,14 @@ public class Comment implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id")
     @JsonIgnore
-    //@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Users user;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "meeting_id")
     @JsonIgnore
-//    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Meeting meeting;
-    @OneToMany(mappedBy = "comment",  orphanRemoval = true, cascade =    CascadeType.ALL, fetch = FetchType.EAGER)
-    @JsonIgnore
+    @OneToMany(mappedBy = "comment",  orphanRemoval = true, cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private Set<Vote> votes = new HashSet<>();
     @ManyToOne(fetch = FetchType.LAZY)
-    @JsonIgnore
-//    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Comment parentComment;
     @Transient
     private Boolean isInSearchResult = false;

@@ -19,6 +19,8 @@ public abstract class CommentMapper {
 
     @Mapping(target="upVotes", expression = "java(comment.getVotes().stream().filter(x -> x.getVoteStatus() == com.company.commentsystem.model.enums.VoteStatus.UP).count())")
     @Mapping(target="downVotes", expression = "java(comment.getVotes().stream().filter(x -> x.getVoteStatus() == com.company.commentsystem.model.enums.VoteStatus.DOWN).count())")
+    @Mapping(target="userFullName", source = "comment.user.fullName")
+    @Mapping(target="userProfilePicture", source = "comment.user.profilePicture")
     public abstract CommentResponseDto toCommentResponseDto(Comment comment, Long repliedCommentCount);
 
     public abstract CommentResponseDto toCommentResponseDto(Comment comment, Long upVotes, Long downVotes, Long repliedCommentCount);

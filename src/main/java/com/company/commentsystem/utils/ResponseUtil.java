@@ -1,4 +1,4 @@
-package com.company.commentsystem.model;
+package com.company.commentsystem.utils;
 
 import com.company.commentsystem.model.dto.response.ApiResponse;
 

@@ -8,4 +8,5 @@ import lombok.Setter;
 public class VoteUserDto {
     private Long id;
     private String fullName;
+    private String profilePicture;
 }

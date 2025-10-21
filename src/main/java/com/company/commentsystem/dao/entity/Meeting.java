@@ -2,11 +2,17 @@ package com.company.commentsystem.dao.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import org.apache.commons.lang3.builder.ToStringExclude;
 
 import java.util.List;
 
 @Entity
+@Getter
+@Setter
 public class Meeting {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -18,12 +24,9 @@ public class Meeting {
             CascadeType.PERSIST,
             CascadeType.REFRESH,
             CascadeType.DETACH})
-
     private List<Comment> comments;
     private String platformLink;
 
-    public Meeting() {
-    }
 
     public void addComment(Comment comment) {
         comments.add(comment);
@@ -35,37 +38,6 @@ public class Meeting {
         comment.setMeeting(null);
     }
 
-    public Long getId() {
-        return this.id;
-    }
-
-    public @NotNull String getLink() {
-        return this.link;
-    }
-
-    public List<Comment> getComments() {
-        return this.comments;
-    }
-
-    public String getPlatformLink() {
-        return this.platformLink;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public void setLink(@NotNull String link) {
-        this.link = link;
-    }
-
-    public void setComments(List<Comment> comments) {
-        this.comments = comments;
-    }
-
-    public void setPlatformLink(String platformLink) {
-        this.platformLink = platformLink;
-    }
 
     public boolean equals(final Object o) {
         if (o == this) return true;

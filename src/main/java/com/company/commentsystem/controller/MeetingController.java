@@ -1,6 +1,6 @@
 package com.company.commentsystem.controller;
 
-import com.company.commentsystem.model.ResponseUtil;
+import com.company.commentsystem.utils.ResponseUtil;
 import com.company.commentsystem.model.dto.response.ApiResponse;
 import com.company.commentsystem.model.dto.meeting.MeetingCreateDto;
 import com.company.commentsystem.model.dto.meeting.MeetingResponseDto;

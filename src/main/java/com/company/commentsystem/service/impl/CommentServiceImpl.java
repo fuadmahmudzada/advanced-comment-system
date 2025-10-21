@@ -49,41 +49,6 @@ public class CommentServiceImpl implements CommentService {
         this.commentSpecification = commentSpecification;
     }
 
-//    public void methodWithAdd(){
-//        Comment comment = new Comment();
-//        comment.setContent("contentcontent1");
-//        commentRepository.save(comment);
-//        Vote vote = new Vote();
-//        vote.setVoteStatus(VoteStatus.UP);
-//        comment.addVote(vote);
-//        commentRepository.save(comment);
-//    }
-//    public void addWithoutAdd(){
-//        Comment comment = new Comment();
-//        comment.setContent("contentcontent1");
-//        commentRepository.save(comment);
-//    }
-//
-//    public void voteVithoutAdd(){
-//        Vote vote = new Vote();
-//        Comment comment =  commentRepository.findByContent("contentcontent1").getFirst();
-////        vote.setComment(comment);
-//        vote.setVoteStatus(VoteStatus.UP);
-//        comment.addVote(vote);
-
-    /// /        List<Vote> votes = comment.getVotes();
-    /// /        comment.setVotes(votes);
-//        voteRepository.save(vote);
-//
-//    }
-//
-//    public void removeMethod(Long id){
-//        Comment comment =  commentRepository.findByContent("contentcontent1").getFirst();
-//        Vote vote = voteRepository.findById(id).get();
-//        comment.removeVote(vote);
-//        commentRepository.delete(comment);
-//
-//    }
     @Transactional
     public CommentCreateResponseDto addComment(CommentCreateDto commentCreateDto) {
         Comment comment = new Comment();
@@ -91,19 +56,15 @@ public class CommentServiceImpl implements CommentService {
         users.setId(commentCreateDto.getUserId());
         comment.setContent(commentCreateDto.getContent());
         comment.setUser(users);
+        users.addComment(comment);
 //        Meeting meeting = new Meeting();
 //        meeting.setId(commentCreateDto.getMeetingId());
         comment.setMeeting(meetingRepository.findById(commentCreateDto.getMeetingId()).orElseThrow(()->new ResourceNotFoundException(String.format("Meeting %d not found", commentCreateDto.getMeetingId()))));
         voteToSelf(comment, users);
         Comment filledComment = commentRepository.save(comment);
         if (commentCreateDto.getRepliedToId() == -1) comment.setParentComment(null);
-        else comment.setParentComment(commentRepository.findById(commentCreateDto.getRepliedToId()).get());
-        //repliedComment.addReply(filledComment);
-//        CommentCreateResponseDto commentCreateResponseDto = new CommentCreateResponseDto();
-//        commentCreateResponseDto.setContent(filledComment.getContent());
-//        commentCreateResponseDto.setId(filledComment.getId());
-//        commentCreateResponseDto.setUpVotes(filledComment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count());
-//        commentCreateResponseDto.setDownVotes(filledComment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count());
+        else comment.setParentComment(commentRepository.findById(commentCreateDto.getRepliedToId()).orElseThrow(()->new ResourceNotFoundException(String.format("Parent with id %d couldn't be found", commentCreateDto.getRepliedToId()))));
+
         return CommentMapper.INSTANCE.toCommentCreateResponseDto(filledComment);
     }
 //proxy method xaricin' oturmek
@@ -130,19 +91,8 @@ public class CommentServiceImpl implements CommentService {
             specification = specification.and(commentSpecification.hasParent(platformLink, parentId, sortType));
             comments = commentRepository.findAll(specification, pageable);
         }
-
         return comments.map(comment -> CommentMapper.INSTANCE.toCommentResponseDto(comment, commentRepository.countByParentComment_Id(comment.getId())));
-//        return comments.map(
-//                comment -> {
-//                    return new CommentResponseDto(comment.getId(),
-//                            comment.getContent(),
-//                            comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count(),
-//                            comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count(),
-//                            commentRepository.countByParentComment_Id(comment.getId()),
-//                            comment.getCreatedAt(),
-//                            comment.getIsDeleted());
-//
-//                });
+
     }
 
     public CommentDto getCommentById(Long id) {
@@ -224,13 +174,7 @@ public class CommentServiceImpl implements CommentService {
     @Transactional(readOnly = true)
     public CommentResponseDto getCommentByIdFromDb(Long id) {
         Comment comment = commentRepository.findById(id).orElseThrow(()->new ResourceNotFoundException(String.format("Comment %d not found", id)));
-        CommentResponseDto commentResponseDto = new CommentResponseDto();
-//        commentResponseDto.setContent(comment.getContent());
-//        commentResponseDto.setId(comment.getId());
-//        commentResponseDto.setCreatedAt(comment.getCreatedAt());
-//        commentResponseDto.setUpVotes(voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.UP));
-//        commentResponseDto.setDownVotes(voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.DOWN));
-//        commentResponseDto.setRepliedCommentCount(commentRepository.countByParentComment_Id(comment.getId()));
+
         return CommentMapper.INSTANCE.toCommentResponseDto(comment, voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.UP), voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.DOWN), commentRepository.countByParentComment_Id(comment.getId()));
     }
 
@@ -256,7 +200,7 @@ public class CommentServiceImpl implements CommentService {
             vote.setVoteStatus(voteRequestDto.getVoteStatus());
             vote.setUser(votingUser);
             System.out.println("before somemethod");
-            votingUser.someMethod();
+
             System.out.println("after somemethod");
             System.out.println("before comment add vote");
             comment.addVote(vote);
@@ -268,10 +212,7 @@ public class CommentServiceImpl implements CommentService {
             return "User voted %s";
         }
 
-        // System.out.println("comment before flush: " + comment);
-        //    commentRepository.flush();
-        //System.out.println("comment after flush: " + comment);
-//        return "hello";
+
     }
 //axirinci querynin sebebine bir de sorusacagin sual
 
@@ -317,6 +258,7 @@ public class CommentServiceImpl implements CommentService {
             VoteUserDto voteUserDto = new VoteUserDto();
             voteUserDto.setId(x.getId());
             voteUserDto.setFullName(x.getFullName());
+            voteUserDto.setProfilePicture(x.getProfilePicture());
             return voteUserDto;
         }).toList();
     }
@@ -342,18 +284,16 @@ public class CommentServiceImpl implements CommentService {
             resultComments.forEach(x -> x.setIsInSearchResult(true));
         }
         List<Comment> modifiableResultComments = new ArrayList<>(resultComments.getContent());
+        if(modifiableResultComments.isEmpty()){
+            throw new ResourceNotFoundException("Search couldn't find anything");
+        }
         addParentsToResultList(modifiableResultComments);
 
 
-        List<CommentSearchResponseDto> searchedCommentInTreeForm = populateRepliesToParents(groupCommentsByParent(modifiableResultComments), null);
-        if (searchedCommentInTreeForm == null) {
-            /*
-            bunu sonradan optional of ile evez elemek lazimdir
-             */
-            searchedCommentInTreeForm = List.of();
-        }
+        Optional<List<CommentSearchResponseDto>> searchedCommentInTreeForm = Optional.ofNullable(populateRepliesToParents(groupCommentsByParent(modifiableResultComments), null));
 
-        return new PageImpl<>(searchedCommentInTreeForm, pageable, searchedCommentInTreeForm.size());
+
+        return new PageImpl<>(searchedCommentInTreeForm.orElseThrow(()->new ResourceNotFoundException("Search couldn't find anything")), pageable, searchedCommentInTreeForm.get().size());
     }
 
 

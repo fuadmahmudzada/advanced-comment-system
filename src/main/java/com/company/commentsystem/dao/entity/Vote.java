@@ -4,13 +4,16 @@ import com.company.commentsystem.model.enums.VoteStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang3.builder.ToStringExclude;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Data
+@Getter
+@Setter
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "comment_id"}))
 public class Vote {
     @Id
@@ -19,13 +22,11 @@ public class Vote {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "comment_id")
     @JsonIgnore
-    @ToStringExclude
     private Comment comment;
     @Enumerated(EnumType.STRING)
     private VoteStatus voteStatus;
     @ManyToOne(fetch = FetchType.LAZY)
-    @JsonIgnore
-    @ToStringExclude
+    @JsonIgnore//vote commentin conteintde get all edende useri tezeden verir
     private Users user;
     @CreationTimestamp
     private LocalDateTime createdAt;

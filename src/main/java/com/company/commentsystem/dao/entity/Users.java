@@ -27,12 +27,12 @@ public class Users {
             CascadeType.REFRESH,
             CascadeType.DETACH
     })
-    @ToStringExclude
     private List<Comment> comments;
 
     @OneToMany(mappedBy = "user")
-    @ToStringExclude
     private Set<Vote> votes;
+
+    private String profilePicture;
 
     public Users(String fullName) {
         this.fullName = fullName;
@@ -55,9 +55,6 @@ public class Users {
     public void addVote(Vote vote) {
         votes.add(vote);
         vote.setUser(this);
-    }
-    public void someMethod(){
-
     }
 
     public void removeVote(Vote vote) {

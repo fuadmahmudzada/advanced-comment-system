@@ -7,5 +7,6 @@ import lombok.*;
 
 public enum VoteStatus {
     DOWN,
-    UP
+    UP,
+    NEUTRAL
 }

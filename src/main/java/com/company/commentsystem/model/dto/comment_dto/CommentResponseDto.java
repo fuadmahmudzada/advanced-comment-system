@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 
 @Setter
 @AllArgsConstructor
-@NoArgsConstructor
 @Getter
 public class CommentResponseDto {
     private Long id;
@@ -18,5 +17,7 @@ public class CommentResponseDto {
     private Long downVotes;
     private Long repliedCommentCount;
     private LocalDateTime createdAt;
+    private String userFullName;
+    private String userProfilePicture;
     private Boolean isDeleted;
 }

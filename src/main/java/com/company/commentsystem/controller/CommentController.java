@@ -1,6 +1,6 @@
 package com.company.commentsystem.controller;
 
-import com.company.commentsystem.model.ResponseUtil;
+import com.company.commentsystem.utils.ResponseUtil;
 import com.company.commentsystem.model.dto.comment_dto.*;
 import com.company.commentsystem.model.dto.response.ApiResponse;
 import com.company.commentsystem.model.dto.vote_dto.VoteRequestDto;
@@ -9,6 +9,11 @@ import com.company.commentsystem.model.enums.CommentSearchDeepness;
 import com.company.commentsystem.model.enums.SortType;
 import com.company.commentsystem.model.enums.VoteStatus;
 import com.company.commentsystem.service.impl.CommentServiceImpl;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -35,29 +40,35 @@ public class CommentController {
 
         //objectHashOperations.put("COMMENTS", dto.getId(), comment);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(ResponseUtil.success( "Comment added", dto, null));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ResponseUtil.success("Comment added", dto, null));
     }
 
     @GetMapping("/comment/{id}")
     public ResponseEntity<ApiResponse<CommentResponseDto>> getComment(@PathVariable Long id) {
-        return ResponseEntity.ok(ResponseUtil.success( "Comment fetched", commentServiceImpl.getCommentByIdFromDb(id),null));
+        return ResponseEntity.ok(ResponseUtil.success("Comment fetched", commentServiceImpl.getCommentByIdFromDb(id), null));
     }
 
     @GetMapping("/{platform-link}")
-    public ResponseEntity<ApiResponse<List<CommentResponseDto>>> getAllComments(@PathVariable("platform-link") String platformLink, @RequestParam("sort-type") SortType sortType,
-                                                   @RequestParam(name = "parent-id") Long parentId, @RequestParam(name = "page-number") int pageNumber,
-                                                   @RequestParam(name = "page-size") int pageSize) {
+    public ResponseEntity<ObjectNode> getAllComments(@PathVariable("platform-link") String platformLink, @RequestParam("sort-type") SortType sortType,
+                                                     @RequestParam(name = "parent-id") Long parentId, @RequestParam(name = "page-number") int pageNumber,
+                                                     @RequestParam(name = "page-size") int pageSize)  {
         //  List<CommentDto> list = objectHashOperations.entries("COMMENTS").values().stream().map(comment -> new CommentDto(comment.getId(), comment.getContent(), comment.getFullName(), comment.getCreatedAt())).toList();
         Page<CommentResponseDto> page = commentServiceImpl.getComments(platformLink, parentId, sortType, pageNumber, pageSize);
-//        System.out.println("PRINT CLASS" + page.getClass());
-//        PageImpl
-        //json ile birbasa gondermek
-         //yeni pageimpl
-         //
-         //
-         //
-        return ResponseEntity.ok(ResponseUtil.success(null, page.getContent(), page)
-                        );
+        List<CommentResponseDto> list = page.getContent();
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode objectNode = objectMapper.createObjectNode();
+
+        objectMapper.registerModule(new JavaTimeModule());
+        objectNode.putNull("message");
+        objectNode.put("status", "success");
+        objectNode.putPOJO("data", list);
+        JsonNode metadata =  objectMapper.valueToTree(page);
+        ((ObjectNode)metadata).remove("content");
+        objectNode.set("metadata", metadata);
+        // page.getContent().removeAll(page.getContent());
+
+        return ResponseEntity.ok(objectNode
+        );
     }
 
     //Jedis jedis = connectionManager.getConnection()
@@ -65,7 +76,7 @@ public class CommentController {
     public ResponseEntity<ApiResponse<Void>> vote(@PathVariable("id") Long commentId, @RequestBody VoteRequestDto voteRequestDto) {
         String message = commentServiceImpl.voteFromDb(commentId, voteRequestDto);
 
-        return ResponseEntity.status(HttpStatus.OK).body(ResponseUtil.success(String.format(message, voteRequestDto.getVoteStatus()), null , null));
+        return ResponseEntity.status(HttpStatus.OK).body(ResponseUtil.success(String.format(message, voteRequestDto.getVoteStatus()), null, null));
     }
 
     @DeleteMapping("/{id}")
@@ -86,7 +97,17 @@ public class CommentController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<Page<CommentSearchResponseDto>> searchComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize, @RequestParam("sort-type") SortType sortType, @RequestParam Long meetingId, @RequestParam CommentSearchDeepness commentSearchDeepness, @RequestParam String content) {
-        return ResponseEntity.ok(commentServiceImpl.searchComments(sortType, pageNumber, pageSize, meetingId, new CommentSearchDto(commentSearchDeepness, content)));
+    public ResponseEntity<ObjectNode> searchComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize, @RequestParam("sort-type") SortType sortType, @RequestParam Long meetingId, @RequestParam CommentSearchDeepness commentSearchDeepness, @RequestParam String content) throws JsonProcessingException {
+        Page<CommentSearchResponseDto> commentSearchResponseDtos = commentServiceImpl.searchComments(sortType, pageNumber, pageSize, meetingId, new CommentSearchDto(commentSearchDeepness, content));
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        ObjectNode objectNode = objectMapper.createObjectNode();
+        objectNode.put("message", "Search on comments are successful");
+        objectNode.putPOJO("data", commentSearchResponseDtos.getContent());
+        JsonNode metaDataObjectNode = objectMapper.valueToTree(commentSearchResponseDtos);
+        ((ObjectNode) metaDataObjectNode).remove("content");
+        objectNode.set("metadata", metaDataObjectNode);
+
+        return ResponseEntity.ok(objectNode);
     }
 }
