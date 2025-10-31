@@ -12,7 +12,7 @@ import java.util.List;
 public interface CommentService {
     public CommentCreateResponseDto addComment(CommentCreateDto commentCreateDto);
     Page<CommentResponseDto> getComments(String platformLink, Long parentId, SortType sortType, Integer pageNumber, Integer pageSize);
-    void vote(Long id, VoteRequestDto voteRequestDto);
+    //void vote(Long id, VoteRequestDto voteRequestDto);
     CommentResponseDto getCommentByIdFromDb(Long id);
     String voteFromDb(Long commentId, VoteRequestDto voteRequestDto);
     void removeFromDb(Long commentId);

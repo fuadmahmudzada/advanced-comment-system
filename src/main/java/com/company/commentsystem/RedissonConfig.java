@@ -109,13 +109,13 @@ public class RedissonConfig {
 //                        preparedStatement.setLong(1, Long.valueOf(entry.getKey().substring(10)));
                         System.out.println("Votesstatus " + VoteStatus.UP);
                         if(entry.getValue().isEmpty()){
-                            return;
+                            continue;
                         }
                         outerloop:
                         for (Long id : entry.getValue()) {
                             for(int i = 0;i<redissonClient.getList("markedForRemoval").size();i++){
                                 if(redissonClient.getList("markedForRemoval").get(i).equals(String.valueOf(entry.getKey() + id))){
-                                    redissonClient.getList("markedForRemoval").remove(entry.getKey() + id);
+                                    //redissonClient.getList("markedForRemoval").remove(entry.getKey() + id);
                                     continue outerloop;
                                 }
                             }
@@ -137,12 +137,21 @@ public class RedissonConfig {
 
             @Override
             public void delete(Collection<String> collection) {
+                Config config = new Config();
+                config.useSingleServer()
+                        .setAddress("redis://127.0.0.1:6379");
+                RedissonClient redissonClient = Redisson.create(config);
                 String sql = "DELETE FROM vote where id = (select id from vote where comment_id = ? and user_id = ? and vote_status= ?)";
                 try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+                    outerloop:
                     for (String entry : collection) {
 //                        preparedStatement.setLong(1, Long.valueOf(entry.getKey().substring(10)));
                         System.out.println("Votesstatus " + VoteStatus.UP);
-
+                        for(int i = 0;i<redissonClient.getList("markedForRemoval").size();i++){
+                            if(redissonClient.getList("markedForRemoval").get(i).equals(String.valueOf(entry))){
+                                continue outerloop;
+                            }
+                        }
                         String[] arr = entry.split(":");
                         preparedStatement.setLong(1, Long.parseLong(arr[arr.length - 2]));
                         preparedStatement.setLong(2, Long.parseLong(arr[arr.length - 1]));
@@ -203,8 +212,39 @@ public class RedissonConfig {
 
             @Override
             public void delete(Collection<String> collection) {
+                String sql = "DELETE FROM vote where id = (select id from vote where comment_id = ? and user_id = ? and vote_status= ?)";
+                Config config = new Config();
+                config.useSingleServer()
+                        .setAddress("redis://127.0.0.1:6379");
+                RedissonClient redissonClient = Redisson.create(config);
+                try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+                    outerloop:
+                    for (String entry : collection) {
+                        for(int i = 0;i<redissonClient.getList("markedForRemoval").size();i++){
 
-            }
+                            if(redissonClient.getList("markedForRemoval").get(i).equals(String.valueOf(entry))){
+                                continue outerloop;
+                            }
+                        }
+//                        preparedStatement.setLong(1, Long.valueOf(entry.getKey().substring(10)));
+                        System.out.println("Votesstatus " + VoteStatus.UP);
+
+                        String[] arr = entry.split(":");
+                        preparedStatement.setLong(1, Long.parseLong(arr[arr.length - 2]));
+                        preparedStatement.setLong(2, Long.parseLong(arr[arr.length - 1]));
+                        preparedStatement.setString(3, String.valueOf(VoteStatus.DOWN));
+
+
+                        preparedStatement.addBatch();
+                    }
+                    preparedStatement.executeBatch();
+                } catch (SQLException e) {
+                    throw new RuntimeException("delete operation failed", e);
+                }
+
+
+
+        }
 
 
         };
@@ -227,11 +267,13 @@ public class RedissonConfig {
                     for (Map.Entry<String, Set<Long>> entry : map.entrySet()) {
 //                        preparedStatement.setLong(1, Long.valueOf(entry.getKey().substring(10)));
                         System.out.println("Votesstatus " + VoteStatus.UP);
+
                         outerloop:
                         for (Long id : entry.getValue()) {
                             for(int i = 0;i<redissonClient.getList("markedForRemoval").size();i++){
 
                                 if(redissonClient.getList("markedForRemoval").get(i).equals(String.valueOf(entry.getKey() + id))){
+
                                     continue outerloop;
                                 }
                             }
@@ -311,7 +353,7 @@ public class RedissonConfig {
 
             @Override
             public void write(Map<String, Set<Long>> map) {
-                String sql = "UPDATE vote SET vote_status = ?, comment_id = ? , user_id = ? where id = ?";
+                String sql = "UPDATE vote SET vote_status = ? where id = (select id from vote where vote_status = ? and comment_id = ? and user_id = ? )";
                 System.out.println("Write operation has been called for downvote to downVoteMapOnUpdateWriter remove " + map.keySet().toString());
                 Config config = new Config();
                 config.useSingleServer()
@@ -331,7 +373,7 @@ public class RedissonConfig {
                                 System.out.println("equals "+entry.getKey() + " " + entry.getValue());
                                 System.out.println("Get printed "+ String.valueOf(entry.getKey() + entry.getValue()).replaceAll("[\\[\\]]", ""));
                                 System.out.println("if contaisn" + redissonClient.getList("markedForRemoval").get(i).equals(entry.getKey() + entry.getValue()));
-                                if(redissonClient.getList("markedForRemoval").get(i).equals(String.valueOf(entry.getKey() + id))){
+                                if(redissonClient.getList("markedForRemoval").get(i).equals(String.valueOf(entry.getKey() + ":" + id))){
                                     continue outerloop;
                                 }
                             }
@@ -340,10 +382,10 @@ public class RedissonConfig {
 //                                continue;
 //                            }
                             String[] arr = entry.getKey().split(":");
-                            preparedStatement.setLong(4, Long.parseLong(arr[arr.length - 2]));
-                            preparedStatement.setLong(3, id);
+                            preparedStatement.setLong(3, Long.parseLong(arr[arr.length - 1]));
+                            preparedStatement.setLong(4, id);
                             preparedStatement.setString(1, String.valueOf(VoteStatus.DOWN));
-                            preparedStatement.setLong(2, Long.parseLong(arr[arr.length - 1]));
+                            preparedStatement.setString(2, String.valueOf(VoteStatus.UP));
 
                             preparedStatement.addBatch();
                         }
@@ -504,7 +546,8 @@ public class RedissonConfig {
     }
 
     @Bean
-    public RList<String> list(RedissonClient client) {
-        return client.getList("markedForRemoval");
+    public RSet<String> list(RedissonClient client) {
+        RSet<String> set = client.getSet("markedForRemoval");
+        return set;
     }
 }
