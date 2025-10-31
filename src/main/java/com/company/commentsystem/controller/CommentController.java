@@ -74,7 +74,7 @@ public class CommentController {
     //Jedis jedis = connectionManager.getConnection()
     @PostMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> vote(@PathVariable("id") Long commentId, @RequestBody VoteRequestDto voteRequestDto) {
-        String message = commentServiceImpl.voteFromDb(commentId, voteRequestDto);
+        String message = commentServiceImpl.voteFromRedis(commentId, voteRequestDto);
 
         return ResponseEntity.status(HttpStatus.OK).body(ResponseUtil.success(String.format(message, voteRequestDto.getVoteStatus()), null, null));
     }

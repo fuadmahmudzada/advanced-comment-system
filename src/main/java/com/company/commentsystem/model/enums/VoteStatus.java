@@ -8,5 +8,10 @@ import lombok.*;
 public enum VoteStatus {
     DOWN,
     UP,
-    NEUTRAL
+    NEUTRAL;
+
+
+    public static VoteStatus getByOrdinal(Integer ordinal){
+        return VoteStatus.values()[ordinal];
+    }
 }

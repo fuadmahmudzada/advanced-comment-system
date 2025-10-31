@@ -16,39 +16,102 @@ import com.company.commentsystem.model.enums.VoteStatus;
 import com.company.commentsystem.model.exception.ResourceNotFoundException;
 import com.company.commentsystem.model.mapper.CommentMapper;
 import com.company.commentsystem.service.CommentService;
-import org.redisson.api.RLocalCachedMap;
+import org.redisson.MapWriterTask;
+import org.redisson.Redisson;
+import org.redisson.api.*;
+import org.redisson.api.RMap;
+import org.redisson.api.map.MapWriter;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.client.reactive.ClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
 //@RequiredArgsConstructor
+
 @Service
 public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
     private final RedisTemplate<String, String> redisTemplate;
-    private final RLocalCachedMap<String, Set<Long>> upVoteMap;
-    private final RLocalCachedMap<String, Set<Long>> downVoteMap;
+    private final RMap<String, Set<Long>> upVoteMap;
+    private final RMap<String, Set<Long>> downVoteMap;
+    private final RLocalCachedMap<String, Set<Long>> voteMap;
+    private final RLocalCachedMap<String, Set<Long>> voteMapOnRemove;
+    private final RMap<String, Set<Long>> upVoteMapOnRemove;
+    private final RMap<String, Set<Long>> downVoteMapOnRemove;
+    private final RMap<String, Set<Long>> downVoteMapOnUpdate;
+    private final RMap<String, Set<Long>> upVoteMapOnUpdate;
+    private final RList<String> markedForRemoval;
     private final VoteRepository voteRepository;
     private final UsersRepository usersRepository;
     private final MeetingRepository meetingRepository;
     private final CommentSpecification commentSpecification;
+    private final MapWriter<String, Set<Long>> voteMapWriter;
+    private final RedissonClient redissonClient;
+    private final ClientHttpConnector clientHttpConnector;
 
-    public CommentServiceImpl(CommentRepository commentRepository, RedisTemplate<String, String> redisTemplate, RLocalCachedMap<String, Set<Long>> upVoteMap, RLocalCachedMap<String, Set<Long>> downVoteMap, VoteRepository voteRepository, UsersRepository usersRepository, MeetingRepository meetingRepository, CommentSpecification commentSpecification) {
+    public CommentServiceImpl(CommentRepository commentRepository, RedisTemplate<String, String> redisTemplate, RMap<String, Set<Long>> upVoteMap, RMap<String, Set<Long>> downVoteMap, RLocalCachedMap<String, Set<Long>> voteMapOnRemove, RMap<String, Set<Long>> upVoteMapOnRemove, RMap<String, Set<Long>> downVoteMapOnRemove, RMap<String, Set<Long>> downVoteMapOnUpdate, RMap<String, Set<Long>> upVoteMapOnUpdate, VoteRepository voteRepository, UsersRepository usersRepository, MeetingRepository meetingRepository, CommentSpecification commentSpecification, RLocalCachedMap<String, Set<Long>> voteMap, RList<String> markedForRemoval, MapWriter<String, Set<Long>> voteMapWriter, RedissonClient redissonClient, ClientHttpConnector clientHttpConnector) {
         this.commentRepository = commentRepository;
         this.redisTemplate = redisTemplate;
         this.upVoteMap = upVoteMap;
         this.downVoteMap = downVoteMap;
+        this.voteMapOnRemove = voteMapOnRemove;
+        this.upVoteMapOnRemove = upVoteMapOnRemove;
+        this.downVoteMapOnRemove = downVoteMapOnRemove;
+        this.downVoteMapOnUpdate = downVoteMapOnUpdate;
+        this.upVoteMapOnUpdate = upVoteMapOnUpdate;
+        this.markedForRemoval = markedForRemoval;
+        this.voteMapWriter = voteMapWriter;
+        this.voteMap = voteMap;
         this.voteRepository = voteRepository;
         this.usersRepository = usersRepository;
         this.meetingRepository = meetingRepository;
         this.commentSpecification = commentSpecification;
+        this.redissonClient = redissonClient;
+        this.clientHttpConnector = clientHttpConnector;
     }
 
+//    public void methodWithAdd(){
+//        Comment comment = new Comment();
+//        comment.setContent("contentcontent1");
+//        commentRepository.save(comment);
+//        Vote vote = new Vote();
+//        vote.setVoteStatus(VoteStatus.UP);
+//        comment.addVote(vote);
+//        commentRepository.save(comment);
+//    }
+//    public void addWithoutAdd(){
+//        Comment comment = new Comment();
+//        comment.setContent("contentcontent1");
+//        commentRepository.save(comment);
+//    }
+//
+//    public void voteVithoutAdd(){
+//        Vote vote = new Vote();
+//        Comment comment =  commentRepository.findByContent("contentcontent1").getFirst();
+////        vote.setComment(comment);
+//        vote.setVoteStatus(VoteStatus.UP);
+//        comment.addVote(vote);
+
+    /// /        List<Vote> votes = comment.getVotes();
+    /// /        comment.setVotes(votes);
+//        voteRepository.save(vote);
+//
+//    }
+//
+//    public void removeMethod(Long id){
+//        Comment comment =  commentRepository.findByContent("contentcontent1").getFirst();
+//        Vote vote = voteRepository.findById(id).get();
+//        comment.removeVote(vote);
+//        commentRepository.delete(comment);
+//
+//    }
     @Transactional
     public CommentCreateResponseDto addComment(CommentCreateDto commentCreateDto) {
         Comment comment = new Comment();
@@ -59,12 +122,18 @@ public class CommentServiceImpl implements CommentService {
         users.addComment(comment);
 //        Meeting meeting = new Meeting();
 //        meeting.setId(commentCreateDto.getMeetingId());
-        comment.setMeeting(meetingRepository.findById(commentCreateDto.getMeetingId()).orElseThrow(()->new ResourceNotFoundException(String.format("Meeting %d not found", commentCreateDto.getMeetingId()))));
+        comment.setMeeting(meetingRepository.findById(commentCreateDto.getMeetingId()).orElseThrow(() -> new ResourceNotFoundException(String.format("Meeting %d not found", commentCreateDto.getMeetingId()))));
         voteToSelf(comment, users);
         Comment filledComment = commentRepository.save(comment);
         if (commentCreateDto.getRepliedToId() == -1) comment.setParentComment(null);
-        else comment.setParentComment(commentRepository.findById(commentCreateDto.getRepliedToId()).orElseThrow(()->new ResourceNotFoundException(String.format("Parent with id %d couldn't be found", commentCreateDto.getRepliedToId()))));
-
+        else
+            comment.setParentComment(commentRepository.findById(commentCreateDto.getRepliedToId()).orElseThrow(() -> new ResourceNotFoundException(String.format("Parent with id %d couldn't be found", commentCreateDto.getRepliedToId()))));
+        //repliedComment.addReply(filledComment);
+//        CommentCreateResponseDto commentCreateResponseDto = new CommentCreateResponseDto();
+//        commentCreateResponseDto.setContent(filledComment.getContent());
+//        commentCreateResponseDto.setId(filledComment.getId());
+//        commentCreateResponseDto.setUpVotes(filledComment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count());
+//        commentCreateResponseDto.setDownVotes(filledComment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count());
         return CommentMapper.INSTANCE.toCommentCreateResponseDto(filledComment);
     }
 //proxy method xaricin' oturmek
@@ -92,7 +161,17 @@ public class CommentServiceImpl implements CommentService {
             comments = commentRepository.findAll(specification, pageable);
         }
         return comments.map(comment -> CommentMapper.INSTANCE.toCommentResponseDto(comment, commentRepository.countByParentComment_Id(comment.getId())));
-
+//        return comments.map(
+//                comment -> {
+//                    return new CommentResponseDto(comment.getId(),
+//                            comment.getContent(),
+//                            comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.UP).count(),
+//                            comment.getVotes().stream().filter(x -> x.getVoteStatus() == VoteStatus.DOWN).count(),
+//                            commentRepository.countByParentComment_Id(comment.getId()),
+//                            comment.getCreatedAt(),
+//                            comment.getIsDeleted());
+//
+//                });
     }
 
     public CommentDto getCommentById(Long id) {
@@ -173,15 +252,22 @@ public class CommentServiceImpl implements CommentService {
 
     @Transactional(readOnly = true)
     public CommentResponseDto getCommentByIdFromDb(Long id) {
-        Comment comment = commentRepository.findById(id).orElseThrow(()->new ResourceNotFoundException(String.format("Comment %d not found", id)));
-
+        Comment comment = commentRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException(String.format("Comment %d not found", id)));
+//        commentResponseDto.setContent(comment.getContent());
+//        commentResponseDto.setId(comment.getId());
+//        commentResponseDto.setCreatedAt(comment.getCreatedAt());
+//        commentResponseDto.setUpVotes(voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.UP));
+//        commentResponseDto.setDownVotes(voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.DOWN));
+//        commentResponseDto.setRepliedCommentCount(commentRepository.countByParentComment_Id(comment.getId()));
         return CommentMapper.INSTANCE.toCommentResponseDto(comment, voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.UP), voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.DOWN), commentRepository.countByParentComment_Id(comment.getId()));
     }
 
     @Transactional
     public String voteFromDb(Long commentId, VoteRequestDto voteRequestDto) {
-        Comment comment = commentRepository.findById(commentId).orElseThrow(()->new ResourceNotFoundException(String.format("Comment %d not found", commentId)));;
-        Users votingUser = usersRepository.findById(voteRequestDto.getUserId()).orElseThrow(()->new ResourceNotFoundException(String.format("User %d not found", voteRequestDto.getUserId())));;
+        Comment comment = commentRepository.findById(commentId).orElseThrow(() -> new ResourceNotFoundException(String.format("Comment %d not found", commentId)));
+        ;
+        Users votingUser = usersRepository.findById(voteRequestDto.getUserId()).orElseThrow(() -> new ResourceNotFoundException(String.format("User %d not found", voteRequestDto.getUserId())));
+        ;
         System.out.println(votingUser);
         Optional<Vote> optionalVote = voteRepository.findByUser_IdAndComment_Id(votingUser.getId(), comment.getId());
         if (optionalVote.isPresent()) {
@@ -214,18 +300,312 @@ public class CommentServiceImpl implements CommentService {
 
 
     }
-//axirinci querynin sebebine bir de sorusacagin sual
 
+    @Transactional(readOnly = true)
+    public String voteFromRedis(Long commentId, VoteRequestDto voteRequestDto) {
+
+
+        Comment comment = commentRepository.findById(commentId).orElseThrow(() -> new ResourceNotFoundException(String.format("Comment %d not found", commentId)));
+        Users votingUser = usersRepository.findById(voteRequestDto.getUserId()).orElseThrow(() -> new ResourceNotFoundException(String.format("User %d not found", voteRequestDto.getUserId())));
+
+        System.out.println(votingUser);
+        Optional<Vote> optionalVote = voteRepository.findByUser_IdAndComment_Id(votingUser.getId(), comment.getId());
+        Vote optionalVoteCache = new Vote();
+        optionalVoteCache.setVoteStatus(voteRequestDto.getVoteStatus());
+        optionalVoteCache.setComment(comment);
+        optionalVoteCache.setUser(votingUser);
+        VoteStatus statusInCache = null;
+
+        boolean isNotInCache = true;
+//        if (voteMap.get("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId()) != null) {
+//            isNotInCache = !voteMap.get("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId()).contains(votingUser.getId());
+//            statusInCache = voteRequestDto.getVoteStatus();
+//
+//        }
+//        short ordinal;
+//        if (voteRequestDto.getVoteStatus().ordinal() == 1) {
+//            ordinal = 0;
+//        } else {
+//            ordinal = 1;
+//        }
+//        if (voteMap.get("last:comment:" + VoteStatus.getByOrdinal((int) ordinal).toString().toLowerCase() + ":" + comment.getId()) != null) {
+//            isNotInCache = !voteMap.get("last:comment:" + VoteStatus.getByOrdinal((int) ordinal).toString().toLowerCase() + ":" + comment.getId()).contains(votingUser.getId());
+//            if (voteMap.get("last:comment:" + VoteStatus.getByOrdinal((int) ordinal).toString().toLowerCase() + ":" + comment.getId()).contains(votingUser.getId())) {
+//                statusInCache = (VoteStatus.getByOrdinal((int) ordinal));
+//            }
+//        }
+        System.out.println("upvote  map " + redissonClient.<String, Set<Long>>getMap("upVoteMap"));
+        if (redissonClient.<String, Set<Long>>getMap("upVoteMap") != null) {
+            System.out.println("upVoteMap map " + redissonClient.<String, Set<Long>>getMap("upVoteMap").get("last:comment:up" + comment.getId()));
+            System.out.println("upVoteMap map keys " + redissonClient.<String, Set<Long>>getMap("upVoteMap").keySet());
+            System.out.println("upVoteMap map values " + redissonClient.<String, Set<Long>>getMap("upVoteMap").values());
+        }
+        if (redissonClient.<String, Set<Long>>getMap("upVoteMap") != null && redissonClient.<String, Set<Long>>getMap("upVoteMap").get("last:comment:up:" + comment.getId()) != null) {
+            System.out.println("Set: " + redissonClient.<String, Set<Long>>getMap("upVoteMap").get("last:comment:up:" + comment.getId()));
+            isNotInCache = !redissonClient.<String, Set<Long>>getMap("upVoteMap").get("last:comment:up:" + comment.getId()).contains(votingUser.getId());
+            statusInCache = VoteStatus.UP;
+            System.out.println("Comment id set " + redissonClient.<String, Set<Long>>getMap("upVoteMap").get("last:comment:up:" + comment.getId()));
+        }
+//        System.out.println("isnotincache " + redissonClient.<String, Set<Long>>getMap("upVoteMap").get("last:comment:up" + comment.getId()).contains(votingUser.getId()));
+//        System.out.println("UPVOTE MAP red client up" + redissonClient.getMap("last:comment:up" + comment.getId()).keySet());
+//        System.out.println("UPVOTE MAP upvotemap" + redissonClient.getMap("upVoteMap").values());
+//        System.out.println("DOWNVOTE MAP " + downVoteMap.get("last:comment:up" + comment.getId()));
+//        System.out.println("isnotincache " + redissonClient.<String, Set<Long>>getMap("downVoteMap").get("last:comment:up" + comment.getId()).contains(votingUser.getId()));
+        System.out.println("downVoteMap  map " + redissonClient.<String, Set<Long>>getMap("downVoteMap"));
+        if (redissonClient.<String, Set<Long>>getMap("downVoteMap") != null) {
+            System.out.println("downVoteMap map keys " + redissonClient.<String, Set<Long>>getMap("downVoteMap").keySet());
+            System.out.println("downVoteMap map values " + redissonClient.<String, Set<Long>>getMap("downVoteMap").values());
+            System.out.println("downvote map " + redissonClient.<String, Set<Long>>getMap("downVoteMap").get("last:comment:down:" + comment.getId()));
+        }
+        if (redissonClient.<String, Set<Long>>getMap("downVoteMap") != null && redissonClient.<String, Set<Long>>getMap("downVoteMap").get("last:comment:down:" + comment.getId()) != null) {
+            isNotInCache = !redissonClient.<String, Set<Long>>getMap("downVoteMap").get("last:comment:down:" + comment.getId()).contains(votingUser.getId());
+            statusInCache = VoteStatus.DOWN;
+            System.out.println("Comment id set " + redissonClient.<String, Set<Long>>getMap("downVoteMap").get("last:comment:down:" + comment.getId()));
+        }
+
+        if (optionalVote.isPresent() && redissonClient.<String, Set<Long>>getMap("downVoteMapOnUpdate") != null && redissonClient.<String, Set<Long>>getMap("downVoteMapOnUpdate").get("last:comment:down:" + optionalVote.get().getId() + ":" + comment.getId()) != null) {
+            isNotInCache = !redissonClient.<String, Set<Long>>getMap("downVoteMapOnUpdate").get("last:comment:down:" + optionalVote.get().getId() + ":" + comment.getId()).contains(votingUser.getId());
+            statusInCache = VoteStatus.DOWN;
+            //System.out.println("Comment id set " + redissonClient.<String, Set<Long>>getMap("downVoteMap").get("last:comment:down:" + comment.getId()));
+        }
+
+        if (optionalVote.isPresent() && redissonClient.<String, Set<Long>>getMap("upVoteMapOnUpdate") != null && redissonClient.<String, Set<Long>>getMap("upVoteMapOnUpdate").get("last:comment:up:" + optionalVote.get().getId() + ":" + comment.getId()) != null) {
+            isNotInCache = !redissonClient.<String, Set<Long>>getMap("upVoteMapOnUpdate").get("last:comment:up:" + optionalVote.get().getId() + ":" + comment.getId()).contains(votingUser.getId());
+            statusInCache = VoteStatus.UP;
+        }
+
+        if (optionalVote.isPresent() && redissonClient.<String, Set<Long>>getMap("upVoteMapOnRemove") != null && redissonClient.<String, Set<Long>>getMap("upVoteMapOnRemove").get("last:comment:up:" + comment.getId()) != null) {
+            isNotInCache = !redissonClient.<String, Set<Long>>getMap("upVoteMapOnRemove").get("last:comment:up:" + comment.getId()).contains(votingUser.getId());
+            statusInCache = VoteStatus.UP;
+        }
+
+        if (optionalVote.isPresent() && redissonClient.<String, Set<Long>>getMap("downVoteMapOnRemove") != null && redissonClient.<String, Set<Long>>getMap("downVoteMapOnRemove").get("last:comment:down:" + comment.getId()) != null) {
+            isNotInCache = !redissonClient.<String, Set<Long>>getMap("downVoteMapOnRemove").get("last:comment:down:" + comment.getId()).contains(votingUser.getId());
+            statusInCache = VoteStatus.DOWN;
+        }
+        RList<MapWriterTask.Add> list = redissonClient.getList("{upVoteMap}:write-behind-queue");
+        System.out.println("write behind" + list);
+        if (list.get(0) != null) {
+            System.out.println(list.get(0).getMap());
+        }
+        System.out.println("Is not in cache" + isNotInCache);
+        System.out.println("status in cache" + statusInCache);
+        Set<Long> upVoteSet = new HashSet<>();
+        Set<Long> downVoteSet = new HashSet<>();
+        if (optionalVote.isEmpty()) {
+            if (isNotInCache) {
+                Vote vote = new Vote();
+                vote.setVoteStatus(voteRequestDto.getVoteStatus());
+                vote.setUser(votingUser);
+
+                comment.addVote(vote);
+
+                votingUser.addVote(vote);
+                if (voteRequestDto.getVoteStatus().equals(VoteStatus.UP)) {
+                    upVoteSet.add(votingUser.getId());
+                    upVoteMap.put("last:comment:" + vote.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), upVoteSet);
+
+                    upVoteMap.expire(Duration.ofMillis(100000));
+                } else {
+                    downVoteSet.add(votingUser.getId());
+                    boolean isSet = upVoteMap.expire(Duration.ofMillis(100000));
+                    System.out.println("ISSET" + isSet);
+                    downVoteMap.put("last:comment:" + vote.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), downVoteSet);
+                    downVoteMap.expire(Duration.ofMillis(100000));
+                }
+                return String.format("User vote %s saved to cache", vote.getVoteStatus());
+            } else {
+                //cache de var
+                if (upVoteMap.get("last:comment:up" + comment.getId()) != null) {
+                    upVoteSet = upVoteMap.get("last:comment:up" + comment.getId());
+                }
+                if (downVoteMap.get("last:comment:down" + comment.getId()) != null) {
+                    downVoteSet = downVoteMap.get("last:comment:down" + comment.getId());
+                }
+                //cachedeki ve gelen statusu eynidirse
+                if (statusInCache == voteRequestDto.getVoteStatus()) {
+                    if (voteRequestDto.getVoteStatus().equals(VoteStatus.UP)) {
+                        markedForRemoval.add("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId() + votingUser.getId());
+                        //write behind elave olunanda cache hamisi silinmelidi
+                        // upVoteMap.replace("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), upVoteSet);
+                        //upVoteMap.expire(Duration.ofMillis(100000));
+                    } else {
+                        markedForRemoval.add("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId() + votingUser.getId());
+//                        downVoteSet.remove(votingUser.getId());
+//                        downVoteMap.replace("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), downVoteSet);
+//                        downVoteMap.expire(Duration.ofMillis(100000));
+                    }
+                    return String.format("User withdrawed vote %s, this change updated to the cache", voteRequestDto.getVoteStatus());
+                } else {
+                    if (voteRequestDto.getVoteStatus().equals(VoteStatus.UP)) {
+                        //downVoteSet.remove(votingUser.getId());
+                        markedForRemoval.add("last:comment:DOWN:" + comment.getId() + votingUser.getId());
+                        upVoteSet.add(votingUser.getId());
+                        upVoteMap.replace("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), upVoteSet);
+                        upVoteMap.expire(Duration.ofMillis(100000));
+                    } else {
+                        //upVoteSet.remove(votingUser.getId());
+                        markedForRemoval.add("last:comment:UP:" + comment.getId() + votingUser.getId());
+                        downVoteSet.add(votingUser.getId());
+                        downVoteMap.replace("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), downVoteSet);
+                        downVoteMap.expire(Duration.ofMillis(100000));
+                    }// if else etmekdense bele ede bilersen
+
+                    return String.format("User withdrawed vote %s, and voted to other. this change updated to the cache", voteRequestDto.getVoteStatus());
+                }
+            }
+            //vote db da var upvote ve ya downvote
+        } else {
+            Set<Long> upVoteOnRemoveSet = new HashSet<>();
+            Set<Long> downVoteOnRemoveSet = new HashSet<>();
+            Set<Long> upVoteOnUpdateSet = new HashSet<>();
+            Set<Long> downVoteOnUpdateSet = new HashSet<>();
+            if (isNotInCache) {
+                //remove olunmalidi bazadan
+                if (optionalVote.get().getVoteStatus() == voteRequestDto.getVoteStatus()) {
+                    if (voteRequestDto.getVoteStatus().equals(VoteStatus.UP)) {
+                        //upVoteOnRemoveSet.add(votingUser.getId());
+                        upVoteMap.remove("last:comment:" + optionalVote.get().getVoteStatus().toString().toLowerCase() + ":" + comment.getId() + ":" + votingUser.getId());
+                        //markedForRemoval.add("last:comment:" + optionalVote.get().getVoteStatus().toString().toLowerCase() + ":" + comment.getId() + ":"+ votingUser.getId());
+                        //upVoteMapOnRemove.put("last:comment:" + optionalVote.get().getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), upVoteOnRemoveSet);
+                        //upVoteMapOnRemove.expire(Duration.ofMillis(100000));
+
+                    } else {
+                        //downVoteOnRemoveSet.add(votingUser.getId());
+                        downVoteMap.remove("last:comment:" + optionalVote.get().getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), downVoteOnRemoveSet);
+                        //downVoteMapOnRemove.put("last:comment:" + optionalVote.get().getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), upVoteOnRemoveSet);
+                        //markedForRemoval.add("last:comment:" + optionalVote.get().getVoteStatus().toString().toLowerCase() + ":" + comment.getId() + ":"+ votingUser.getId());
+                        //downVoteMapOnRemove.expire(Duration.ofMillis(100000));
+                    }
+                    return String.format("User vote %s is scheduled to remove from DB", voteRequestDto.getVoteStatus());
+                } else {
+                    //bazadan sil yenisini yaz
+                    //bazadakini silmek ucun cach-e elave edirik
+                    if (voteRequestDto.getVoteStatus().equals(VoteStatus.UP)) {
+                        upVoteOnUpdateSet.add(votingUser.getId());
+                        upVoteMapOnUpdate.put("last:comment:up:" + optionalVote.get().getId() + ":" + commentId, upVoteOnUpdateSet);
+                        upVoteMapOnUpdate.expire(Duration.ofMillis(100000));
+                    } else {
+                        downVoteOnUpdateSet.add(votingUser.getId());
+                        downVoteMapOnUpdate.put("last:comment:down:" + optionalVote.get().getId() + ":" + commentId, downVoteOnUpdateSet);
+                        downVoteMapOnUpdate.expire(Duration.ofMillis(100000));
+                    }
+//                    if (voteRequestDto.getVoteStatus().equals(VoteStatus.UP)) {
+//                        downVoteOnRemoveSet.add(votingUser.getId());
+//                        downVoteMapOnRemove.put("last:comment:" + optionalVote.get().getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), downVoteOnRemoveSet);
+//                        downVoteMapOnRemove.expire(Duration.ofMillis(90000));
+//
+//                    } else {
+//                        upVoteOnRemoveSet.add(votingUser.getId());
+//                        upVoteMapOnRemove.put("last:comment:" + optionalVote.get().getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), upVoteOnRemoveSet);
+//                        upVoteMapOnRemove.expire(Duration.ofMillis(90000));
+//                    }
+//                    //bazaya save ucun cache elave edirik
+//                    if (voteRequestDto.getVoteStatus().equals(VoteStatus.UP)) {
+//                        upVoteSet.add(votingUser.getId());
+//
+//                        upVoteMap.put("last:comment:up:" + comment.getId(), upVoteSet);
+//                        upVoteMap.expire(Duration.ofMillis(100000));
+//                    } else {
+//
+//
+//                        downVoteSet.add(votingUser.getId());
+//                        downVoteMap.put("last:comment:down:" + comment.getId(), downVoteSet);
+//                        downVoteMap.expire(Duration.ofMillis(100000));
+//                    }
+                    return String.format("User other vote is scheduled to remove from DB and %s is added to cache", voteRequestDto.getVoteStatus());
+                }
+            } else {
+                if (upVoteMap.get("last:comment:up" + comment.getId()) != null) {
+                    upVoteSet = upVoteMap.get("last:comment:up" + comment.getId());
+                }
+                if (downVoteMap.get("last:comment:down" + comment.getId()) != null) {
+                    downVoteSet = downVoteMap.get("last:comment:down" + comment.getId());
+                }
+                if (upVoteMapOnUpdate.get("last:comment:up:" + optionalVote.get().getId() + ":" + comment.getId()) != null) {
+                    upVoteOnUpdateSet = upVoteMapOnUpdate.get("last:comment:up:" + optionalVote.get().getId() + ":" + comment.getId());
+                }
+                if (downVoteMapOnUpdate.get("last:comment:down:" + optionalVote.get().getId() + ":" + comment.getId()) != null) {
+                    downVoteOnUpdateSet = downVoteMapOnUpdate.get("last:comment:down:" + optionalVote.get().getId() + ":" + comment.getId());
+                }
+                if (downVoteMapOnRemove.get("last:comment:down" + ":" + comment.getId()) != null) {
+                    downVoteOnRemoveSet = downVoteMapOnRemove.get("last:comment:down" + ":" + comment.getId());
+                }
+                if (upVoteMapOnRemove.get("last:comment:up" + ":" + comment.getId()) != null) {
+                    upVoteOnRemoveSet = upVoteMapOnRemove.get("last:comment:up" + ":" + comment.getId());
+                }
+                //cachededi bazadadi
+                if (statusInCache == optionalVote.get().getVoteStatus()) {
+                    if (statusInCache == VoteStatus.UP) {
+                        //upVoteOnRemoveSet.remove(votingUser.getId());
+                        markedForRemoval.add("last:comment:up:" + comment.getId() + votingUser.getId());
+
+                        if (voteRequestDto.getVoteStatus() == VoteStatus.DOWN) {
+                            //yenisini elave et
+                            downVoteOnUpdateSet.add(votingUser.getId());
+                            downVoteMapOnUpdate.put("last:comment:down:" + optionalVote.get().getId() + ":" + comment.getId(), downVoteOnUpdateSet);
+                            downVoteMapOnUpdate.expire(Duration.ofMillis(100000));
+                            return "Vote is updated in cache from UP to DOWN";
+                        }
+                        return "Vote is removed from cache";
+                    } else {
+
+                        markedForRemoval.add("last:comment:down:" + comment.getId() + votingUser.getId());
+
+                        if (voteRequestDto.getVoteStatus() == VoteStatus.UP) {
+                            //yenisini elave et
+                            upVoteOnUpdateSet.add(votingUser.getId());
+                            upVoteMapOnUpdate.put("last:comment:up:" + optionalVote.get().getId() + ":" + comment.getId(), downVoteOnUpdateSet);
+                            upVoteMapOnUpdate.expire(Duration.ofMillis(100000));
+                        }
+                        return "Vote is updated in cache from DOWN to UP";
+                    }
+
+                } else {
+                    if (statusInCache == VoteStatus.DOWN) {
+                        markedForRemoval.add("last:comment:down:" + optionalVote.get().getId() + ":" + comment.getId() + votingUser.getId());
+
+                    } else {
+                        markedForRemoval.add("last:comment:up:" + optionalVote.get().getId() + ":" + comment.getId() + votingUser.getId());
+
+                    }
+                    return "Vote is removed from cache";
+                }
+            }
+
+
+        }
+
+
+//            if (voteMap.get("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId()) != null) {
+//                if (voteRequestDto.getVoteStatus() == VoteStatus.UP)
+//                    upVoteSet = voteMap.get("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId());
+//                else
+//                    downVoteSet = voteMap.get("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId());
+//            }
+//            if (upVoteSet.contains(votingUser.getId())) {
+//                optionalVoteCache = Optional.ofNullable(votingUser.getId());
+//            }
+
+
+        // System.out.println("comment before flush: " + comment);
+        //    commentRepository.flush();
+        //System.out.println("comment after flush: " + comment);
+//        return "hello";
+
+//axirinci querynin sebebine bir de sorusacagin sual
+    }
 
     @Transactional
     public void removeFromDb(Long commentId) {
         if (commentRepository.countAllByParentComment_Id(commentId) == 0) {
             commentRepository.deleteById(commentId);
         } else {
-            Comment comment = commentRepository.findById(commentId).orElseThrow(()->new ResourceNotFoundException(String.format("Comment %d not found", commentId)));;
+            Comment comment = commentRepository.findById(commentId).orElseThrow(() -> new ResourceNotFoundException(String.format("Comment %d not found", commentId)));
+            ;
             comment.setContent(null);
             comment.setIsInSearchResult(null);
-            comment.getVotes().removeIf(x->x.getId()>=0);
+            comment.getVotes().removeIf(x -> x.getId() >= 0);
             comment.setVotes(comment.getVotes());
             comment.setIsDeleted(true);
         }
@@ -235,7 +615,8 @@ public class CommentServiceImpl implements CommentService {
 
     @Transactional
     public CommentResponseDto editComment(CommentEditDto commentEditDto, Long commentId) {
-        Comment comment = commentRepository.findById(commentId).orElseThrow(()->new ResourceNotFoundException(String.format("Comment %d not found", commentId)));;
+        Comment comment = commentRepository.findById(commentId).orElseThrow(() -> new ResourceNotFoundException(String.format("Comment %d not found", commentId)));
+        ;
         comment.setContent(commentEditDto.getContent());
         commentRepository.save(comment);
 //        CommentResponseDto commentResponseDto = new CommentResponseDto();
@@ -265,7 +646,8 @@ public class CommentServiceImpl implements CommentService {
 
 
     @Transactional(readOnly = true)
-    public Page<CommentSearchResponseDto> searchComments(SortType sortType, int pageNumber, int pageSize, Long meetingId, CommentSearchDto commentSearchDto) {
+    public Page<CommentSearchResponseDto> searchComments(SortType sortType, int pageNumber, int pageSize, Long
+            meetingId, CommentSearchDto commentSearchDto) {
 
         Pageable pageable = PageRequest.of(pageNumber, pageSize);
         Specification<Comment> specification = (root, query, cb) -> null;
@@ -284,7 +666,7 @@ public class CommentServiceImpl implements CommentService {
             resultComments.forEach(x -> x.setIsInSearchResult(true));
         }
         List<Comment> modifiableResultComments = new ArrayList<>(resultComments.getContent());
-        if(modifiableResultComments.isEmpty()){
+        if (modifiableResultComments.isEmpty()) {
             throw new ResourceNotFoundException("Search couldn't find anything");
         }
         addParentsToResultList(modifiableResultComments);
@@ -293,7 +675,7 @@ public class CommentServiceImpl implements CommentService {
         Optional<List<CommentSearchResponseDto>> searchedCommentInTreeForm = Optional.ofNullable(populateRepliesToParents(groupCommentsByParent(modifiableResultComments), null));
 
 
-        return new PageImpl<>(searchedCommentInTreeForm.orElseThrow(()->new ResourceNotFoundException("Search couldn't find anything")), pageable, searchedCommentInTreeForm.get().size());
+        return new PageImpl<>(searchedCommentInTreeForm.orElseThrow(() -> new ResourceNotFoundException("Search couldn't find anything")), pageable, searchedCommentInTreeForm.get().size());
     }
 
 
@@ -330,7 +712,8 @@ public class CommentServiceImpl implements CommentService {
     }
 
     //subtree formasinda replylari qur
-    private List<CommentSearchResponseDto> populateRepliesToParents(Map<Long, List<Comment>> map, Long parentId) {
+    private List<CommentSearchResponseDto> populateRepliesToParents(Map<Long, List<Comment>> map, Long
+            parentId) {
         List<Comment> commentsRepliedToParent = map.get(parentId);
         if (commentsRepliedToParent != null) {
 
@@ -358,4 +741,65 @@ public class CommentServiceImpl implements CommentService {
     }
 
 }
+// if (statusInCache != optionalVote.get().getVoteStatus()) {
+//        if (voteRequestDto.getVoteStatus().equals(VoteStatus.UP)) {
+//        upVoteSet.remove(votingUser.getId());
+//        upVoteOnUpdateSet.remove(votingUser.getId());
+//
+//        upVoteMapOnUpdate.replace("last:comment:up:" + optionalVote.get().getId() + ":" + comment.getId(), upVoteOnUpdateSet);
+//
+//        //upVoteMap.replace("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), upVoteSet);
+//        //upVoteMap.expire(Duration.ofMillis(100000));
+//        upVoteMapOnUpdate.expire(Duration.ofMillis(100000));
+//        } else {
+//        downVoteSet.remove(votingUser.getId());
+//        downVoteOnUpdateSet.remove(votingUser.getId());
+//
+//
+//        downVoteMapOnUpdate.replace("last:comment:down:" + optionalVote.get().getId() + ":" + comment.getId(), downVoteOnUpdateSet);
+//
+//        //downVoteMap.replace("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), downVoteSet);
+//        //downVoteMap.expire(Duration.ofMillis(100000));
+//        downVoteMapOnUpdate.expire(Duration.ofMillis(100000));
+//        }
+//        return String.format("Vote %s is removed from cache", voteRequestDto.getVoteStatus());
+//        } else {
+//        if (voteRequestDto.getVoteStatus().equals(VoteStatus.UP)) {
+//        upVoteOnRemoveSet.remove(votingUser.getId());
+//        if (upVoteOnRemoveSet.isEmpty()) {
+//        upVoteMapOnRemove.remove("last:comment:up:" + comment.getId());
+//        } else {
+//        upVoteMapOnRemove.replace("last:comment:up" + ":" + comment.getId(), upVoteOnRemoveSet);
+//        }
+/// /                        downVoteSet.remove(votingUser.getId());
+/// /                        upVoteSet.add(votingUser.getId());
+//
+//        upVoteMapOnRemove.expire(Duration.ofMillis(100000));
+//        } else {
+//        downVoteOnRemoveSet.remove(votingUser.getId());
+//        downVoteOnUpdateSet.add(votingUser.getId());
+//        //upVoteSet.remove(votingUser.getId());
+//        //downVoteSet.add(votingUser.getId());
+//        downVoteMapOnRemove.replace("last:comment:down" + ":" + comment.getId(), downVoteOnRemoveSet);
+//        downVoteMapOnRemove.expire(Duration.ofMillis(100000));
+//        }
+//
+//        // upVoteMap.replace("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), upVoteSet);
+//        // downVoteMap.replace("last:comment:" + voteRequestDto.getVoteStatus().toString().toLowerCase() + ":" + comment.getId(), downVoteSet);
+//        //upVoteMap.expire(Duration.ofMillis(100000));
+//        //downVoteMap.expire(Duration.ofMillis(100000));
+//        return String.format("Vote is removed from cache and %s is voted", voteRequestDto.getVoteStatus());
+//        }
 
+
+//                        RList<MapWriterTask.Add> queue = redissonClient.getList("{downVoteMapOnRemove}:write-behind-queue");
+//                        boolean remove = false;
+//                        int i;
+//                        for (i = 0; i < queue.size(); i++) {
+//                            if (queue.get(i).getMap().get("last:comment:down:" + comment.getId()) == votingUser.getId()) {
+//                                remove = true;
+//                            }
+//                        }
+//                        if (remove) {
+//                            queue.remove(i);
+//                        }

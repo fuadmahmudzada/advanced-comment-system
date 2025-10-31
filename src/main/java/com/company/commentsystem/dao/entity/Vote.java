@@ -8,14 +8,16 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.builder.ToStringExclude;
 import org.hibernate.annotations.CreationTimestamp;
+import org.springframework.stereotype.Component;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Entity
 @Getter
 @Setter
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "comment_id"}))
-public class Vote {
+public class Vote implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
