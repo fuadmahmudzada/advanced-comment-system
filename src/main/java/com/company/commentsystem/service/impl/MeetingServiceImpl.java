@@ -4,30 +4,25 @@ import com.company.commentsystem.dao.entity.Meeting;
 import com.company.commentsystem.dao.repository.MeetingRepository;
 import com.company.commentsystem.model.dto.meeting.MeetingCreateDto;
 import com.company.commentsystem.model.dto.meeting.MeetingResponseDto;
+import com.company.commentsystem.model.mapper.MeetingMapper;
 import com.company.commentsystem.service.MeetingService;
 import com.company.commentsystem.utils.SuffixGenerator;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class MeetingServiceImpl implements MeetingService {
     private final MeetingRepository meetingRepository;
     private final SuffixGenerator suffixGenerator = new SuffixGenerator();
-    public MeetingServiceImpl(MeetingRepository meetingRepository) {
-        this.meetingRepository = meetingRepository;
-    }
 
     @Transactional
     public MeetingResponseDto create(MeetingCreateDto meetingCreateDto){
         Meeting meeting = new Meeting();
         meeting.setLink(meetingCreateDto.getLink());
         meeting.setPlatformLink(suffixGenerator.generatePlatformLink());
-        Meeting newMeeting = meetingRepository.save(meeting);
-        MeetingResponseDto meetingResponseDto = new MeetingResponseDto();
-        meetingResponseDto.setId(newMeeting.getId());
-        meetingResponseDto.setLink(newMeeting.getLink());
-        meetingResponseDto.setPlatformLink(meeting.getPlatformLink());
-        return meetingResponseDto;
+        return MeetingMapper.INSTANCE.toMeetingResponseDto(meetingRepository.save(meeting));
 
     }
 }

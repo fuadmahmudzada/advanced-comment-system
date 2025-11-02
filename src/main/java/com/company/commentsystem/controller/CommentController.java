@@ -54,21 +54,20 @@ public class CommentController {
                                                      @RequestParam(name = "page-size") int pageSize)  {
         //  List<CommentDto> list = objectHashOperations.entries("COMMENTS").values().stream().map(comment -> new CommentDto(comment.getId(), comment.getContent(), comment.getFullName(), comment.getCreatedAt())).toList();
         Page<CommentResponseDto> page = commentServiceImpl.getComments(platformLink, parentId, sortType, pageNumber, pageSize);
-        List<CommentResponseDto> list = page.getContent();
+        List<CommentResponseDto> pageContent = page.getContent();
         ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode objectNode = objectMapper.createObjectNode();
 
         objectMapper.registerModule(new JavaTimeModule());
         objectNode.putNull("message");
         objectNode.put("status", "success");
-        objectNode.putPOJO("data", list);
+        objectNode.putPOJO("data", pageContent);
         JsonNode metadata =  objectMapper.valueToTree(page);
         ((ObjectNode)metadata).remove("content");
         objectNode.set("metadata", metadata);
         // page.getContent().removeAll(page.getContent());
 
-        return ResponseEntity.ok(objectNode
-        );
+        return ResponseEntity.ok(objectNode);
     }
 
     //Jedis jedis = connectionManager.getConnection()

@@ -14,7 +14,7 @@ public interface CommentService {
     Page<CommentResponseDto> getComments(String platformLink, Long parentId, SortType sortType, Integer pageNumber, Integer pageSize);
     //void vote(Long id, VoteRequestDto voteRequestDto);
     CommentResponseDto getCommentByIdFromDb(Long id);
-    String voteFromDb(Long commentId, VoteRequestDto voteRequestDto);
+
     void removeFromDb(Long commentId);
     CommentResponseDto editComment(CommentEditDto commentEditDto, Long commentId);
     List<VoteUserDto> getVotes(Long commentId, VoteStatus voteStatus);

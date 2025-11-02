@@ -1,4 +1,4 @@
-package com.company.commentsystem;
+package com.company.commentsystem.config;
 
 import com.company.commentsystem.model.dto.comment_dto.CommentDto;
 import org.springframework.context.annotation.Bean;

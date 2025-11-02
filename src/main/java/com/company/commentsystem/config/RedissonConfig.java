@@ -1,15 +1,11 @@
-package com.company.commentsystem;
+package com.company.commentsystem.config;
 
 import com.company.commentsystem.model.enums.VoteStatus;
-import org.postgresql.util.PSQLException;
 import org.redisson.Redisson;
 import org.redisson.api.*;
 import org.redisson.api.map.MapWriter;
 import org.redisson.api.map.WriteMode;
-import org.redisson.api.options.LocalCachedMapOptions;
-import org.redisson.api.options.MapCacheOptions;
 import org.redisson.api.options.MapOptions;
-import org.redisson.client.codec.StringCodec;
 import org.redisson.config.Config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,7 +14,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -43,50 +38,6 @@ public class RedissonConfig {
         }
     }
 
-    @Bean
-    public MapWriter<String, Set<Long>> voteMapWriter() {
-        MapWriter<String, Set<Long>> mapWriter = new MapWriter<String, Set<Long>>() {
-
-
-            @Override
-            public void write(Map<String, Set<Long>> map) {
-                String sql = "INSERT INTO vote(comment_id, user_id, vote_status) values (?, ?, ?)";
-                System.out.println("Write operation has been called for upvote " + map.keySet().toString());
-
-                try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
-                    for (Map.Entry<String, Set<Long>> entry : map.entrySet()) {
-//                        preparedStatement.setLong(1, Long.valueOf(entry.getKey().substring(10)));
-                        System.out.println("Votesstatus " + VoteStatus.UP);
-                        for (Long id : entry.getValue()) {
-                            String[] arr = entry.getKey().split(":");
-                            preparedStatement.setLong(1, Long.parseLong(arr[arr.length - 1]));
-                            preparedStatement.setLong(2, id);
-                            if (arr[arr.length - 2].equals("upvote")) {
-                                preparedStatement.setString(3, String.valueOf(VoteStatus.UP));
-                            } else {
-                                preparedStatement.setString(3, String.valueOf(VoteStatus.DOWN));
-                            }
-
-                        }
-
-
-                        preparedStatement.addBatch();
-                    }
-                    preparedStatement.executeBatch();
-                } catch (SQLException e) {
-                    throw new RuntimeException("Write operation failed", e);
-                }
-            }
-
-            @Override
-            public void delete(Collection<String> collection) {
-
-            }
-
-
-        };
-        return mapWriter;
-    }
 
     @Bean
     public MapWriter<String, Set<Long>> upVoteMapWriter() {
@@ -252,100 +203,6 @@ public class RedissonConfig {
 
     }
 
-
-    @Bean
-    public MapWriter<String, Set<Long>> upVoteMapOnRemoveWriter() {
-        MapWriter<String, Set<Long>> mapWriter = new MapWriter<String, Set<Long>>() {
-
-
-            @Override
-            public void write(Map<String, Set<Long>> map) {
-                String sql = "DELETE FROM vote WHERE id in (select id from vote where vote_status = ? and comment_id = ? and user_id = ?)";
-                System.out.println("Write operation has been called for upvote to remove " + map.keySet().toString() + map.values());
-                RedissonClient redissonClient = redissonClient();
-                try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
-                    for (Map.Entry<String, Set<Long>> entry : map.entrySet()) {
-//                        preparedStatement.setLong(1, Long.valueOf(entry.getKey().substring(10)));
-                        System.out.println("Votesstatus " + VoteStatus.UP);
-
-                        outerloop:
-                        for (Long id : entry.getValue()) {
-                            for(int i = 0;i<redissonClient.getList("markedForRemoval").size();i++){
-
-                                if(redissonClient.getList("markedForRemoval").get(i).equals(String.valueOf(entry.getKey() + id))){
-
-                                    continue outerloop;
-                                }
-                            }
-                            String[] arr = entry.getKey().split(":");
-                            preparedStatement.setString(1, "UP");
-                            preparedStatement.setLong(2, Long.parseLong(arr[arr.length - 1]));
-                            preparedStatement.setLong(3, id);
-                            preparedStatement.addBatch();
-                        }
-
-                    }
-                    preparedStatement.executeBatch();
-                } catch (SQLException e) {
-                    throw new RuntimeException("Write operation failed", e);
-                }
-            }
-
-            @Override
-            public void delete(Collection<String> collection) {
-
-            }
-
-
-        };
-        return mapWriter;
-    }
-
-    @Bean
-    public MapWriter<String, Set<Long>> downVoteMapOnRemoveWriter() {
-        MapWriter<String, Set<Long>> mapWriter = new MapWriter<String, Set<Long>>() {
-
-
-            @Override
-            public void write(Map<String, Set<Long>> map) {
-                String sql = "DELETE FROM vote WHERE id = (select id from vote where vote_status = ? and comment_id = ? and user_id = ?)";
-                System.out.println("Write operation has been called for downvote to remove " + map.keySet().toString());
-                RedissonClient redissonClient = redissonClient();
-                try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
-                    for (Map.Entry<String, Set<Long>> entry : map.entrySet()) {
-
-//                        preparedStatement.setLong(1, Long.valueOf(entry.getKey().substring(10)));
-                        System.out.println("Votesstatus " + VoteStatus.UP);
-                        for (Long id : entry.getValue()) {
-                            if(redissonClient.getList("markedForRemoval").contains(entry.getKey() + entry.getValue())){
-                                continue;
-                            }
-                            String[] arr = entry.getKey().split(":");
-                            preparedStatement.setLong(2, Long.parseLong(arr[arr.length - 1]));
-                            preparedStatement.setLong(3, id);
-                            preparedStatement.setString(1, String.valueOf(VoteStatus.DOWN));
-                            preparedStatement.addBatch();
-                        }
-
-
-
-                    }
-                    preparedStatement.executeBatch();
-                } catch (SQLException e) {
-                    throw new RuntimeException("Write operation failed", e);
-                }
-            }
-
-            @Override
-            public void delete(Collection<String> collection) {
-
-            }
-
-
-        };
-        return mapWriter;
-    }
-
     @Bean
     public MapWriter<String, Set<Long>> downVoteMapOnUpdateWriter() {
         MapWriter<String, Set<Long>> mapWriter = new MapWriter<String, Set<Long>>() {
@@ -484,25 +341,6 @@ public class RedissonConfig {
         return client.getMap(options);
     }
 
-    @Bean
-    public RMap<String, Set<Long>> upVoteMapOnRemove(RedissonClient client, MapWriter<String, Set<Long>> upVoteMapOnRemoveWriter) {
-        MapOptions<String, Set<Long>> options = MapOptions.<String, Set<Long>>name("upVoteMapOnRemove")
-                .writer(upVoteMapOnRemoveWriter)
-                .writeMode(WriteMode.WRITE_BEHIND)
-                .writeBehindDelay(100000)
-                .writeBehindBatchSize(100000);
-        return client.getMap(options);
-    }
-
-    @Bean
-    public RMap<String, Set<Long>> downVoteMapOnRemove(RedissonClient client, MapWriter<String, Set<Long>> downVoteMapOnRemoveWriter) {
-        MapOptions<String, Set<Long>> options = MapOptions.<String, Set<Long>>name("downVoteMapOnRemove")
-                .writer(downVoteMapOnRemoveWriter)
-                .writeMode(WriteMode.WRITE_BEHIND)
-                .writeBehindDelay(100000)
-                .writeBehindBatchSize(100000);
-        return client.getMap(options);
-    }
 
     @Bean
     public RMap<String, Set<Long>> upVoteMapOnUpdate(RedissonClient client, MapWriter<String, Set<Long>> upVoteMapOnUpdateWriter) {
@@ -524,30 +362,11 @@ public class RedissonConfig {
         return client.getMap(options);
     }
 
-    @Bean
-    public RLocalCachedMap<String, Set<Long>> voteMapOnRemove(RedissonClient client, MapWriter<String, Set<Long>> downVoteMapWriter) {
-        LocalCachedMapOptions<String, Set<Long>> options = LocalCachedMapOptions.<String, Set<Long>>name("voteMapOnRemove")
-                .writer(downVoteMapWriter)
-                .writeMode(WriteMode.WRITE_BEHIND)
-                .writeBehindDelay(100000)
-                .writeBehindBatchSize(100000);
-        return client.getLocalCachedMap(options);
-    }
 
-
-    @Bean
-    public RLocalCachedMap<String, Set<Long>> voteMap(RedissonClient client, MapWriter<String, Set<Long>> downVoteMapWriter) {
-        LocalCachedMapOptions<String, Set<Long>> options = LocalCachedMapOptions.<String, Set<Long>>name("voteMap")
-                .writer(downVoteMapWriter)
-                .writeMode(WriteMode.WRITE_BEHIND)
-                .writeBehindDelay(100000)
-                .writeBehindBatchSize(100000);
-        return client.getLocalCachedMap(options);
-    }
 
     @Bean
     public RSet<String> list(RedissonClient client) {
-        RSet<String> set = client.getSet("markedForRemoval");
+        RSet<String> set = client.getSet("markedForRemove");
         return set;
     }
 }
