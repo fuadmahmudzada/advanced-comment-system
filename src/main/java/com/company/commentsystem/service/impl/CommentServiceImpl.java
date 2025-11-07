@@ -16,6 +16,10 @@ import com.company.commentsystem.model.enums.VoteStatus;
 import com.company.commentsystem.model.exception.ResourceNotFoundException;
 import com.company.commentsystem.model.mapper.CommentMapper;
 import com.company.commentsystem.service.CommentService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.*;
 import org.redisson.api.RMap;
@@ -78,7 +82,7 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Transactional(readOnly = true)
-    public Page<CommentResponseDto> getComments(String platformLink, Long parentId, SortType sortType, Integer pageNumber, Integer pageSize) {
+    public ObjectNode getComments(String platformLink, Long parentId, SortType sortType, Integer pageNumber, Integer pageSize) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize/*, constructSorting(sortType)*/);
         Page<Comment> comments;
         Specification<Comment> specification = ((root, query, criteriaBuilder) -> null);
@@ -91,7 +95,7 @@ public class CommentServiceImpl implements CommentService {
             specification = specification.and(commentSpecification.hasParent(platformLink, parentId, sortType));
             comments = commentRepository.findAll(specification, pageable);
         }
-        return comments.map(comment -> CommentMapper.INSTANCE.toCommentResponseDto(comment, commentRepository.countByParentComment_Id(comment.getId())));
+        return turnPageIntoResponseStandard(comments.map(comment -> CommentMapper.INSTANCE.toCommentResponseDto(comment, commentRepository.countByParentComment_Id(comment.getId()))));
 
     }
 
@@ -152,7 +156,44 @@ public class CommentServiceImpl implements CommentService {
         return CommentMapper.INSTANCE.toCommentResponseDto(comment, voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.UP), voteRepository.countAllByComment_IdAndVoteStatus(comment.getId(), VoteStatus.DOWN), commentRepository.countByParentComment_Id(comment.getId()));
     }
 
+    @Transactional
+    public String voteFromDb(Long commentId, VoteRequestDto voteRequestDto) {
+        Comment comment = commentRepository.findById(commentId).orElseThrow(() -> new ResourceNotFoundException(String.format("Comment %d not found", commentId)));
 
+        Users votingUser = usersRepository.findById(voteRequestDto.getUserId()).orElseThrow(() -> new ResourceNotFoundException(String.format("User %d not found", voteRequestDto.getUserId())));
+
+        System.out.println(votingUser);
+        Optional<Vote> optionalVote = voteRepository.findByUser_IdAndComment_Id(votingUser.getId(), comment.getId());
+        if (optionalVote.isPresent()) {
+            Vote vote = optionalVote.get();
+            if (voteRequestDto.getVoteStatus().equals(vote.getVoteStatus())) {
+                comment.removeVote(vote);
+                return "User withdraw %s vote";
+            } else {
+                vote.setVoteStatus(voteRequestDto.getVoteStatus());
+                //commentRepository.save(comment);
+                return "User changed to %s vote";
+            }
+        } else {
+
+            Vote vote = new Vote();
+            vote.setVoteStatus(voteRequestDto.getVoteStatus());
+            vote.setUser(votingUser);
+            System.out.println("before somemethod");
+
+            System.out.println("after somemethod");
+            System.out.println("before comment add vote");
+            comment.addVote(vote);
+            System.out.println("after comment add vote");
+            votingUser.addVote(vote);
+            System.out.println("after user add vote");
+
+            commentRepository.save(comment);
+            return "User voted %s";
+        }
+
+
+    }
 
     @Transactional(readOnly = true)
     public String voteFromRedis(Long commentId, VoteRequestDto voteRequestDto) {
@@ -402,7 +443,7 @@ public class CommentServiceImpl implements CommentService {
 
 
     @Transactional(readOnly = true)
-    public Page<CommentSearchResponseDto> searchComments(SortType sortType, int pageNumber, int pageSize, Long
+    public ObjectNode searchComments(SortType sortType, int pageNumber, int pageSize, Long
             meetingId, CommentSearchDto commentSearchDto) {
 
         Pageable pageable = PageRequest.of(pageNumber, pageSize);
@@ -431,7 +472,7 @@ public class CommentServiceImpl implements CommentService {
         Optional<List<CommentSearchResponseDto>> searchedCommentInTreeForm = Optional.ofNullable(populateRepliesToParents(groupCommentsByParent(modifiableResultComments), null));
 
 
-        return new PageImpl<>(searchedCommentInTreeForm.orElseThrow(() -> new ResourceNotFoundException("Search couldn't find anything")), pageable, searchedCommentInTreeForm.get().size());
+        return turnPageIntoResponseStandard(new PageImpl<>(searchedCommentInTreeForm.orElseThrow(() -> new ResourceNotFoundException("Search couldn't find anything")), pageable, searchedCommentInTreeForm.get().size()));
     }
 
 
@@ -494,6 +535,18 @@ public class CommentServiceImpl implements CommentService {
         return null;
 
 
+    }
+
+    private ObjectNode turnPageIntoResponseStandard(Page<CommentSearchResponseDto> commentSearchResponseDtos){
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        ObjectNode objectNode = objectMapper.createObjectNode();
+        objectNode.put("message", "Search on comments are successful");
+        objectNode.putPOJO("data", commentSearchResponseDtos.getContent());
+        JsonNode metaDataObjectNode = objectMapper.valueToTree(commentSearchResponseDtos);
+        ((ObjectNode) metaDataObjectNode).remove("content");
+        objectNode.set("metadata", metaDataObjectNode);
+        return objectNode;
     }
 
 }

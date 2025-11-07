@@ -1,5 +1,6 @@
 package com.company.commentsystem.controller;
 
+import com.company.commentsystem.service.MeetingService;
 import com.company.commentsystem.utils.ResponseUtil;
 import com.company.commentsystem.model.dto.response.ApiResponse;
 import com.company.commentsystem.model.dto.meeting.MeetingCreateDto;
@@ -14,11 +15,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("v1/meeting")
 @RequiredArgsConstructor
 public class MeetingController {
-    private final MeetingServiceImpl meetingServiceImpl;
+    private final MeetingService meetingService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<MeetingResponseDto>> create(@RequestBody MeetingCreateDto meetingCreateDto) {
-        MeetingResponseDto meetingResponseDto = meetingServiceImpl.create(meetingCreateDto);
+        MeetingResponseDto meetingResponseDto = meetingService.create(meetingCreateDto);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 ResponseUtil.success( "Meeting created", meetingResponseDto, null)

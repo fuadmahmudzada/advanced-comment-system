@@ -1,5 +1,6 @@
 package com.company.commentsystem.controller;
 
+import com.company.commentsystem.service.CommentService;
 import com.company.commentsystem.utils.ResponseUtil;
 import com.company.commentsystem.model.dto.comment_dto.*;
 import com.company.commentsystem.model.dto.response.ApiResponse;
@@ -28,7 +29,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class CommentController {
 
-    private final CommentServiceImpl commentServiceImpl;
+    private final CommentService commentService;
     //private HashOperations<String, Long, Comment> objectHashOperations =null;
     private final RedisTemplate<String, String> redisTemplate;
 
@@ -36,7 +37,7 @@ public class CommentController {
     @PostMapping
     public ResponseEntity<ApiResponse<CommentCreateResponseDto>> addComment(@RequestBody CommentCreateDto commentCreateDto) {
 
-        CommentCreateResponseDto dto = commentServiceImpl.addComment(commentCreateDto);
+        CommentCreateResponseDto dto = commentService.addComment(commentCreateDto);
 
         //objectHashOperations.put("COMMENTS", dto.getId(), comment);
 
@@ -45,7 +46,7 @@ public class CommentController {
 
     @GetMapping("/comment/{id}")
     public ResponseEntity<ApiResponse<CommentResponseDto>> getComment(@PathVariable Long id) {
-        return ResponseEntity.ok(ResponseUtil.success("Comment fetched", commentServiceImpl.getCommentByIdFromDb(id), null));
+        return ResponseEntity.ok(ResponseUtil.success("Comment fetched", commentService.getCommentByIdFromDb(id), null));
     }
 
     @GetMapping("/{platform-link}")
@@ -53,60 +54,41 @@ public class CommentController {
                                                      @RequestParam(name = "parent-id") Long parentId, @RequestParam(name = "page-number") int pageNumber,
                                                      @RequestParam(name = "page-size") int pageSize)  {
         //  List<CommentDto> list = objectHashOperations.entries("COMMENTS").values().stream().map(comment -> new CommentDto(comment.getId(), comment.getContent(), comment.getFullName(), comment.getCreatedAt())).toList();
-        Page<CommentResponseDto> page = commentServiceImpl.getComments(platformLink, parentId, sortType, pageNumber, pageSize);
-        List<CommentResponseDto> pageContent = page.getContent();
-        ObjectMapper objectMapper = new ObjectMapper();
-        ObjectNode objectNode = objectMapper.createObjectNode();
+        return ResponseEntity.ok(commentService.getComments(platformLink, parentId, sortType, pageNumber, pageSize));
 
-        objectMapper.registerModule(new JavaTimeModule());
-        objectNode.putNull("message");
-        objectNode.put("status", "success");
-        objectNode.putPOJO("data", pageContent);
-        JsonNode metadata =  objectMapper.valueToTree(page);
-        ((ObjectNode)metadata).remove("content");
-        objectNode.set("metadata", metadata);
-        // page.getContent().removeAll(page.getContent());
 
-        return ResponseEntity.ok(objectNode);
+
     }
 
     //Jedis jedis = connectionManager.getConnection()
     @PostMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> vote(@PathVariable("id") Long commentId, @RequestBody VoteRequestDto voteRequestDto) {
-        String message = commentServiceImpl.voteFromRedis(commentId, voteRequestDto);
+        String message = commentService.voteFromRedis(commentId, voteRequestDto);
 
         return ResponseEntity.status(HttpStatus.OK).body(ResponseUtil.success(String.format(message, voteRequestDto.getVoteStatus()), null, null));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> remove(@PathVariable("id") Long commentId) {
-        commentServiceImpl.removeFromDb(commentId);
+        commentService.removeFromDb(commentId);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}")
     public ResponseEntity<ApiResponse<CommentResponseDto>> editComment(@PathVariable("id") Long commentId, @RequestBody CommentEditDto commentEditDto) {
-        CommentResponseDto commentResponseDto = commentServiceImpl.editComment(commentEditDto, commentId);
+        CommentResponseDto commentResponseDto = commentService.editComment(commentEditDto, commentId);
         return ResponseEntity.status(HttpStatus.OK).body(ResponseUtil.success("Comment edited", commentResponseDto, null));
     }
 
     @GetMapping("/{id}/votes")
     public ResponseEntity<ApiResponse<List<VoteUserDto>>> getVotes(@PathVariable(name = "id") Long commentId, @RequestParam VoteStatus voteStatus) {
-        return ResponseEntity.ok(ResponseUtil.success(null, commentServiceImpl.getVotes(commentId, voteStatus), null));
+        return ResponseEntity.ok(ResponseUtil.success(null, commentService.getVotes(commentId, voteStatus), null));
     }
 
     @GetMapping("/search")
     public ResponseEntity<ObjectNode> searchComments(@RequestParam(name = "page-number") int pageNumber, @RequestParam(name = "page-size") int pageSize, @RequestParam("sort-type") SortType sortType, @RequestParam Long meetingId, @RequestParam CommentSearchDeepness commentSearchDeepness, @RequestParam String content) throws JsonProcessingException {
-        Page<CommentSearchResponseDto> commentSearchResponseDtos = commentServiceImpl.searchComments(sortType, pageNumber, pageSize, meetingId, new CommentSearchDto(commentSearchDeepness, content));
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
-        ObjectNode objectNode = objectMapper.createObjectNode();
-        objectNode.put("message", "Search on comments are successful");
-        objectNode.putPOJO("data", commentSearchResponseDtos.getContent());
-        JsonNode metaDataObjectNode = objectMapper.valueToTree(commentSearchResponseDtos);
-        ((ObjectNode) metaDataObjectNode).remove("content");
-        objectNode.set("metadata", metaDataObjectNode);
+        return ResponseEntity.ok(commentService.searchComments(sortType, pageNumber, pageSize, meetingId, new CommentSearchDto(commentSearchDeepness, content)));
 
-        return ResponseEntity.ok(objectNode);
+
     }
 }
